@@ -36,3 +36,10 @@ pip-log.txt
 
 ## paver generated files
 /paver-minilib.zip
+
+## Editor temp files
+.~lock.*
+*.swp
+\#*\#
+
+.ipynb_checkpoints/
