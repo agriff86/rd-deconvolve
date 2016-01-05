@@ -1,5 +1,5 @@
 # distutils: language = c++
-# distutils: sources = fast_detector_model.cpp
+# distutils: sources = rddeconv/fast_detector_model.cpp
 
 """
 references:

@@ -25,7 +25,8 @@ from scipy.stats import poisson, norm, lognorm
 import emcee
 
 
-import fast_model
+from . import fast_detector
+from . import util
 
 # constants for radon decay and daughers
 radon_chain_half_life = np.array([3.82*24*3600, #Rn-222 (3.82 d)
@@ -372,7 +373,6 @@ def detector_model(t, Y0 = np.zeros(5),
     parameters = (Q, rs, lamp, eff, Q_external,
                   V_delay, V_tank, recoil_prob, Nrn_ext)
 
-    from util import timewith
     # ensure functions have been compiled
     detector_state_rate_of_change(Y0, 0, *parameters)
     # with timewith("ODE integration") as timer:
@@ -398,8 +398,8 @@ def detector_model_wrapper(timestep, initial_state, external_radon_conc,
     TODO:
     """
     t = np.arange(0, timestep*len(external_radon_conc), timestep, dtype=np.float)
-    params = fast_model.parameter_array_from_dict(parameters)
-    soln = fast_model.detector_model(timestep, interpolation_mode,
+    params = fast_detector.parameter_array_from_dict(parameters)
+    soln = fast_detector.detector_model(timestep, interpolation_mode,
                                   external_radon_conc,
                                   internal_airt_history,
                                   initial_state, params)
@@ -416,8 +416,8 @@ def detector_model_observed_counts(timestep, initial_state, external_radon_conc,
                            internal_airt_history,
                            parameters, interpolation_mode=1):
     """just return the observed_counts timeseries"""
-    params = fast_model.parameter_array_from_dict(parameters)
-    soln = fast_model.detector_model(timestep, interpolation_mode,
+    params = fast_detector.parameter_array_from_dict(parameters)
+    soln = fast_detector.detector_model(timestep, interpolation_mode,
                                   external_radon_conc, internal_airt_history,
                                   initial_state, params)
     return np.diff(soln[:,-1])
@@ -472,10 +472,10 @@ def test_detector_model(doplots=False):
     dfp = detector_model(t, recoil_prob=0.5)
     df['count rate recoil_prob=0.5'] = dfp['count rate']
 
+    df['count rate, c impl'] = df2['count rate']
     if doplots:
         # compare python with C implementations
         f, ax = plt.subplots()
-        df['count rate, c impl'] = df2['count rate']
         df[['count rate, c impl', 'count rate']].plot(ax=ax)
         # some other stuff
         if False:
@@ -621,7 +621,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[], parameters=dict(),
     # TODO: put info about hyper-parameters into the parameters dict
     hyper_parameter_names = 'Q_external', 'Q', 'rs', 'lamp', 't_delay'
     nhyper = len(hyper_parameter_names)
-    nstate = fast_model.N_state
+    nstate = fast_detector.N_state
 
 
     # TODO: these should be provided as arguments
@@ -891,7 +891,6 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[], parameters=dict(),
 
 
 def test_fit_to_obs():
-    import util
     fname = 'data-controlled-test-2/T1Mar15e.CSV'
     dfobs = util.load_radon(fname)
 
@@ -969,7 +968,7 @@ def test_fit_to_obs():
 
         # run the model
         # to ensure that the initial guess isn't going totally off the mark
-        Y0 = fast_model.calc_steady_state(dfss.radon_conc.values[0],
+        Y0 = fast_detector.calc_steady_state(dfss.radon_conc.values[0],
                                 Q=parameters['Q'], rs=parameters['rs'],
                                 lamp=parameters['lamp'],
                                 V_tank=parameters['V_tank'],
@@ -1002,8 +1001,8 @@ def test_fit_to_obs():
             sampler, A, mean_est, low, high = fit_ret
             popt = A.mean(axis=0)
             # this is fragile...
-            Y0 = popt[:fast_model.N_state]  # currently 6
-            hyper_parameters = popt[fast_model.N_state:]
+            Y0 = popt[:fast_detector.N_state]  # currently 6
+            hyper_parameters = popt[fast_detector.N_state:]
             Q_external, Q, rs, eff, t_delay = hyper_parameters
             parameters.update(dict(Q_external=Q_external, Q=Q,
                                    rs=rs, eff=eff, t_delay=t_delay))
@@ -1034,7 +1033,7 @@ if __name__ == "__main__":
     #df = test_steady_state()
 
 
-    if True:
+    if False:
         dfss, fit_ret = test_fit_to_obs()
         plt.show()
 

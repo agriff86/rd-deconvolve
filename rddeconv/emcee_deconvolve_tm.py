@@ -28,7 +28,7 @@ import emcee
 
 import util
 
-import fast_model
+import fast_detector
 
 import theoretical_model as tm
 
@@ -45,8 +45,8 @@ def detector_model_wrapper(timestep, initial_state, external_radon_conc,
     TODO:
     """
     t = np.arange(0, timestep*len(external_radon_conc), timestep, dtype=np.float)
-    params = fast_model.parameter_array_from_dict(parameters)
-    soln = fast_model.detector_model(timestep, interpolation_mode,
+    params = fast_detector.parameter_array_from_dict(parameters)
+    soln = fast_detector.detector_model(timestep, interpolation_mode,
                                   external_radon_conc, internal_airt_history,
                                   initial_state, params)
     df = pd.DataFrame(index=t/60.0, data=soln)
@@ -61,8 +61,8 @@ def detector_model_wrapper(timestep, initial_state, external_radon_conc,
 def detector_model_observed_counts(timestep, initial_state, external_radon_conc,
                            internal_airt_history,parameters, interpolation_mode=0):
     """just return the observed_counts timeseries"""
-    params = fast_model.parameter_array_from_dict(parameters)
-    soln = fast_model.detector_model(timestep, interpolation_mode,
+    params = fast_detector.parameter_array_from_dict(parameters)
+    soln = fast_detector.detector_model(timestep, interpolation_mode,
                                   external_radon_conc, internal_airt_history,
                                   initial_state, params)
     return np.diff(soln[:,-1])
@@ -74,7 +74,7 @@ def calc_detector_efficiency(parameters):
     """
     Compute steady-state counting efficiency (counts per Bq/m3 of radon)
     """
-    Y0 = fast_model.calc_steady_state(Nrn = 1.0/lamrn, Q=parameters['Q'],
+    Y0 = fast_detector.calc_steady_state(Nrn = 1.0/lamrn, Q=parameters['Q'],
                                         rs=parameters['rs'],
                                         lamp=parameters['lamp'],
                                         V_tank=parameters['V_tank'],
@@ -148,7 +148,7 @@ def detector_model_specialised(p, parameters):
     if parameters.has_key('transform_radon_timeseries') and \
                                        parameters['transform_radon_timeseries']:
         radon_concentration_timeseries = \
-        fast_model.inverse_transform_radon_concs(radon_concentration_timeseries)
+        fast_detector.inverse_transform_radon_concs(radon_concentration_timeseries)
     #print(external_radon_conc[0:4])
     cr = detector_model_observed_counts(timestep, parameters['Y0'],
                                  radon_concentration_timeseries,
@@ -256,7 +256,7 @@ def lnprior_difference(radon_concentration_timeseries, parameters):
     if parameters.has_key('transform_radon_timeseries') and \
                                        parameters['transform_radon_timeseries']:
         radon_concentration_timeseries = \
-        fast_model.inverse_transform_radon_concs(radon_concentration_timeseries)
+        fast_detector.inverse_transform_radon_concs(radon_concentration_timeseries)
     p = radon_concentration_timeseries
     # Parameters must all be > 0
     if p.min() <= 0:
@@ -302,7 +302,7 @@ def lnprior_params(p, parameters):
         mu = parameters['total_efficiency']
         sigma = mu*parameters['total_efficiency_frac_error']
         rs=allparams['rs']
-        Y0 = fast_model.calc_steady_state(1/lamrn,
+        Y0 = fast_detector.calc_steady_state(1/lamrn,
                                 Q=allparams['Q'], rs=rs,
                                 lamp=allparams['lamp'],
                                 V_tank=allparams['V_tank'],
@@ -359,7 +359,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
                  }
     parameters.update(parameters_)
     nhyper = len(variable_parameter_names)
-    nstate = fast_model.N_state
+    nstate = fast_detector.N_state
     transform_radon_timeseries = parameters['transform_radon_timeseries']
 
     # temporarily set to zero for MAP estimate (will restore before sampling)
@@ -387,7 +387,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
                                                 variable_parameters_sigma_prior,
                             internal_airt_history=internal_airt_history))
     # Detector state at t=0, prior and initial guess
-    Y0 = fast_model.calc_steady_state(Nrn=1.0, Q=parameters['Q'], rs=parameters['rs'],
+    Y0 = fast_detector.calc_steady_state(Nrn=1.0, Q=parameters['Q'], rs=parameters['rs'],
                         lamp=parameters['lamp'],
                         V_tank=parameters['V_tank'],
                         recoil_prob=parameters['recoil_prob'],
@@ -458,7 +458,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         plt.show()
 
         rs = parameters['rs']
-        Y0eff = fast_model.calc_steady_state(1/lamrn,
+        Y0eff = fast_detector.calc_steady_state(1/lamrn,
                                     Q=parameters['Q'], rs=rs,
                                     lamp=parameters['lamp'],
                                     V_tank=parameters['V_tank'],
@@ -629,13 +629,13 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     if not radon_conc_is_known and transform_radon_timeseries:
         print('Transforming radon timeseries for emcee sampling')
         orig = p[nstate+nhyper:].copy()
-        fast_model.transform_radon_concs_inplace(p[nstate+nhyper:])
+        fast_detector.transform_radon_concs_inplace(p[nstate+nhyper:])
         #f, ax = plt.subplots()
         #ax.plot(orig)
         #f, ax = plt.subplots()
         #ax.plot(p[nstate+nhyper:])
         #plt.show()
-        check = fast_model.inverse_transform_radon_concs(p[nstate+nhyper:])
+        check = fast_detector.inverse_transform_radon_concs(p[nstate+nhyper:])
         if not np.allclose(orig, check):
             print("transformed radon concs do not match inverse")
             print("(orig,inv) pairs follow")
@@ -683,7 +683,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     if transform_radon_timeseries:
         for ii in range(Nch):
             for jj in range(Nit):
-                fast_model.inverse_transform_radon_concs_inplace(
+                fast_detector.inverse_transform_radon_concs_inplace(
                                         sampler.chain[ii, jj, nstate+nhyper:])
 
     A = sampler.flatchain
@@ -792,7 +792,7 @@ def emcee_deconvolve_tm(df, col_name='lld',
     # detector overall efficiency - check it's close to the prescribed efficiency
     # TODO: should eff be adjusted here?
     rs = parameters['rs']
-    Y0eff = fast_model.calc_steady_state(1/lamrn,
+    Y0eff = fast_detector.calc_steady_state(1/lamrn,
                                 Q=parameters['Q'], rs=rs,
                                 lamp=parameters['lamp'],
                                 V_tank=parameters['V_tank'],
@@ -962,7 +962,7 @@ def test_df_deconvolve(nproc):
 
     # detector overall efficiency - check it's close to the prescribed efficiency
     rs = parameters['rs']
-    Y0eff = fast_model.calc_steady_state(1/lamrn,
+    Y0eff = fast_detector.calc_steady_state(1/lamrn,
                                 Q=parameters['Q'], rs=rs,
                                 lamp=parameters['lamp'],
                                 V_tank=parameters['V_tank'],
@@ -1260,7 +1260,7 @@ def test_deconvolve(iterations=100):
 
     # detector overall efficiency - check it's close to the prescribed efficiency
     rs = parameters['rs']
-    Y0eff = fast_model.calc_steady_state(1/lamrn,
+    Y0eff = fast_detector.calc_steady_state(1/lamrn,
                                 Q=parameters['Q'], rs=rs,
                                 lamp=parameters['lamp'],
                                 V_tank=parameters['V_tank'],
@@ -1481,7 +1481,7 @@ def test_fit_to_obs():
 
         # run the model
         # to ensure that the initial guess isn't going totally off the mark
-        Y0 = fast_model.calc_steady_state(dfss.radon_conc.values[0],
+        Y0 = fast_detector.calc_steady_state(dfss.radon_conc.values[0],
                                 Q=parameters['Q'], rs=parameters['rs'],
                                 lamp=parameters['lamp'],
                                 V_tank=parameters['V_tank'],
@@ -1581,7 +1581,7 @@ def test_detector_model():
 
     # detector overall efficiency
     rs = parameters['rs']
-    Y0 = fast_model.calc_steady_state(1/lamrn,
+    Y0 = fast_detector.calc_steady_state(1/lamrn,
                                 Q=parameters['Q'], rs=rs,
                                 lamp=parameters['lamp'],
                                 V_tank=parameters['V_tank'],
@@ -1608,7 +1608,7 @@ def test_detector_model():
                                              0.1])
 
     nhyper = len(variable_parameter_names)
-    nstate = fast_model.N_state
+    nstate = fast_detector.N_state
 
     radon_conc_is_known = True
     #parameters['observed_counts'] = observations
@@ -1752,7 +1752,7 @@ def test_lnprob_functions():
     internal_airt_history = np.zeros(radon_conc.shape) + 20 + 273.15
     parameters['internal_airt_history'] = internal_airt_history
 
-    Y0 = fast_model.calc_steady_state(1/lamrn * 1e-6,
+    Y0 = fast_detector.calc_steady_state(1/lamrn * 1e-6,
                                 Q=parameters['Q'], rs=parameters['rs'],
                                 lamp=parameters['lamp'],
                                 V_tank=parameters['V_tank'],
@@ -1795,7 +1795,7 @@ def test_lnprob_functions():
                                              0.1])
 
     nhyper = len(variable_parameter_names)
-    nstate = fast_model.N_state
+    nstate = fast_detector.N_state
 
     radon_conc_is_known = True
     parameters['observed_counts'] = observations

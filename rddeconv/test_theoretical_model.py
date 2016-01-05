@@ -1,6 +1,18 @@
+# run this using py.test from top-level directory
+# ref: https://pytest.org/latest/getting-started.html
+from __future__ import print_function, division
+from theoretical_model import test_detector_model
 import fast_detector
 import numpy as np
 
+REL_TOLERENCE = 1e-4
+
+def test_c_vs_python_implementation():
+    df = test_detector_model()
+    relative_error = (df['count rate, c impl'] -
+                      df['count rate']).abs().max() / df['count rate'].max()
+    print('C vs Python relative error:', relative_error)
+    assert relative_error < REL_TOLERENCE
 
 def test_inplace_transform():
     N = 500
@@ -39,23 +51,3 @@ def test_non_inplace_transform():
     orig = p[nstate+nhyper:].copy()
     p = fast_detector.transform_radon_concs(p[nstate+nhyper:])
     assert np.allclose(fast_detector.inverse_transform_radon_concs(p), orig)
-
-
-
-this_stuff_is_useful_in_an_ipython_session = """
-%matplotlib inline
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-import pandas as pd
-import numpy as np
-import fast_model
-
-nhyper=0
-nstate = 0
-N = 500
-p = (np.random.random_sample(N) + 0.01)*1000
-orig = p[nstate+nhyper:].copy()
-fast_model.fast_detector.transform_radon_concs_inplace(p[nstate+nhyper:])
-plt.plot(p)
-plt.plot(fast_model.fast_detector.transform_radon_concs(orig))
-"""

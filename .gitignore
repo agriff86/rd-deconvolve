@@ -43,3 +43,7 @@ pip-log.txt
 \#*\#
 
 .ipynb_checkpoints/
+
+.cache
+
+*.so
