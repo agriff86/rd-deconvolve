@@ -26,11 +26,9 @@ from scipy.stats import poisson, norm, lognorm
 
 import emcee
 
-import util
-
-import fast_detector
-
-import theoretical_model as tm
+from . import util
+from . import fast_detector
+from . import theoretical_model as tm
 
 lamrn = 2.1001405267111005e-06
 lama = 0.0037876895112565318
@@ -445,7 +443,8 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         # if we're simulating a calibration then begin with a guess of
         # constant ambient radon concentration
-        if parameters['cal_source_strength'] > 0:
+        if parameters.has_key('cal_source_strength') and \
+                                        parameters['cal_source_strength'] > 0:
             # counts per counting interval, gets converted to atoms/m3 later
             radon_conc = radon_conc*0.0 + observed_counts[0]
 

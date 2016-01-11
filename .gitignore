@@ -41,6 +41,7 @@ pip-log.txt
 .~lock.*
 *.swp
 \#*\#
+*~
 
 .ipynb_checkpoints/
 
