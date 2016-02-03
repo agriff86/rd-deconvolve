@@ -1761,7 +1761,7 @@ static char __pyx_k_unable_to_allocate_array_data[] = "unable to allocate array 
 static char __pyx_k_strided_and_direct_or_indirect[] = "<strided and direct or indirect>";
 static char __pyx_k_varying_parameters_lower_bound[] = "varying_parameters_lower_bound";
 static char __pyx_k_varying_parameters_upper_bound[] = "varying_parameters_upper_bound";
-static char __pyx_k_mnt_scratch_working_2015_12_dec[] = "/mnt/scratch/working/2015-12-deconv-software/rd-deconvolve/rddeconv/fast_detector.pyx";
+static char __pyx_k_mnt_scratch2_working_2015_12_de[] = "/mnt/scratch2/working/2015-12-deconv-software/rd-deconvolve/rddeconv/fast_detector.pyx";
 static char __pyx_k_references_http_docs_cython_org[] = "\nreferences:\n  http://docs.cython.org/src/tutorial/numpy.html\n  http://docs.cython.org/src/userguide/memoryviews.html\n  http://stackoverflow.com/questions/17855032/passing-and-returning-numpy-arrays-to-c-methods-via-cython\n  ";
 static char __pyx_k_unknown_dtype_code_in_numpy_pxd[] = "unknown dtype code in numpy.pxd (%d)";
 static char __pyx_k_All_dimensions_preceding_dimensi[] = "All dimensions preceding dimension %d must be indexed and not sliced";
@@ -1871,7 +1871,7 @@ static PyObject *__pyx_n_s_logstate;
 static PyObject *__pyx_n_s_lower_bounds;
 static PyObject *__pyx_n_s_main;
 static PyObject *__pyx_n_s_memview;
-static PyObject *__pyx_kp_s_mnt_scratch_working_2015_12_dec;
+static PyObject *__pyx_kp_s_mnt_scratch2_working_2015_12_de;
 static PyObject *__pyx_n_s_mode;
 static PyObject *__pyx_n_s_name;
 static PyObject *__pyx_n_s_name_2;
@@ -20960,7 +20960,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_lower_bounds, __pyx_k_lower_bounds, sizeof(__pyx_k_lower_bounds), 0, 0, 1, 1},
   {&__pyx_n_s_main, __pyx_k_main, sizeof(__pyx_k_main), 0, 0, 1, 1},
   {&__pyx_n_s_memview, __pyx_k_memview, sizeof(__pyx_k_memview), 0, 0, 1, 1},
-  {&__pyx_kp_s_mnt_scratch_working_2015_12_dec, __pyx_k_mnt_scratch_working_2015_12_dec, sizeof(__pyx_k_mnt_scratch_working_2015_12_dec), 0, 0, 1, 0},
+  {&__pyx_kp_s_mnt_scratch2_working_2015_12_de, __pyx_k_mnt_scratch2_working_2015_12_de, sizeof(__pyx_k_mnt_scratch2_working_2015_12_de), 0, 0, 1, 0},
   {&__pyx_n_s_mode, __pyx_k_mode, sizeof(__pyx_k_mode), 0, 0, 1, 1},
   {&__pyx_n_s_name, __pyx_k_name, sizeof(__pyx_k_name), 0, 0, 1, 1},
   {&__pyx_n_s_name_2, __pyx_k_name_2, sizeof(__pyx_k_name_2), 0, 0, 1, 1},
@@ -21354,7 +21354,7 @@ static int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__28 = PyTuple_Pack(5, __pyx_n_s_xi, __pyx_n_s_timestep, __pyx_n_s_y, __pyx_n_s_mode, __pyx_n_s_N); if (unlikely(!__pyx_tuple__28)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 51; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_tuple__28);
   __Pyx_GIVEREF(__pyx_tuple__28);
-  __pyx_codeobj__29 = (PyObject*)__Pyx_PyCode_New(4, 0, 5, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__28, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch_working_2015_12_dec, __pyx_n_s_linear_interpolation_test, 51, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__29)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 51; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_codeobj__29 = (PyObject*)__Pyx_PyCode_New(4, 0, 5, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__28, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch2_working_2015_12_de, __pyx_n_s_linear_interpolation_test, 51, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__29)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 51; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
   /* "rddeconv/fast_detector.pyx":59
  *     return linear_interpolation(xi, N, timestep, &y[0], mode)
@@ -21366,7 +21366,7 @@ static int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__30 = PyTuple_Pack(2, __pyx_n_s_parameter_dict, __pyx_n_s_parameter_array); if (unlikely(!__pyx_tuple__30)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 59; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_tuple__30);
   __Pyx_GIVEREF(__pyx_tuple__30);
-  __pyx_codeobj__31 = (PyObject*)__Pyx_PyCode_New(1, 0, 2, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__30, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch_working_2015_12_dec, __pyx_n_s_parameter_array_from_dict, 59, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__31)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 59; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_codeobj__31 = (PyObject*)__Pyx_PyCode_New(1, 0, 2, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__30, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch2_working_2015_12_de, __pyx_n_s_parameter_array_from_dict, 59, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__31)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 59; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
   /* "rddeconv/fast_detector.pyx":84
  * 
@@ -21378,7 +21378,7 @@ static int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__32 = PyTuple_Pack(6, __pyx_n_s_t, __pyx_n_s_Nrn, __pyx_n_s_lamp, __pyx_n_s_Na, __pyx_n_s_Nb, __pyx_n_s_Nc); if (unlikely(!__pyx_tuple__32)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 84; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_tuple__32);
   __Pyx_GIVEREF(__pyx_tuple__32);
-  __pyx_codeobj__33 = (PyObject*)__Pyx_PyCode_New(3, 0, 6, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__32, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch_working_2015_12_dec, __pyx_n_s_calc_NaNbNc, 84, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__33)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 84; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_codeobj__33 = (PyObject*)__Pyx_PyCode_New(3, 0, 6, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__32, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch2_working_2015_12_de, __pyx_n_s_calc_NaNbNc, 84, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__33)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 84; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
   /* "rddeconv/fast_detector.pyx":156
  * @cython.boundscheck(False)
@@ -21390,7 +21390,7 @@ static int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__34 = PyTuple_Pack(16, __pyx_n_s_Nrn, __pyx_n_s_Q, __pyx_n_s_rs, __pyx_n_s_lamp, __pyx_n_s_V_tank, __pyx_n_s_recoil_prob, __pyx_n_s_eff, __pyx_n_s_tt, __pyx_n_s_Na, __pyx_n_s_Nb, __pyx_n_s_Nc, __pyx_n_s_Fa, __pyx_n_s_Fb, __pyx_n_s_Fc, __pyx_n_s_Acc_counts, __pyx_n_s_Yss); if (unlikely(!__pyx_tuple__34)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 156; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_tuple__34);
   __Pyx_GIVEREF(__pyx_tuple__34);
-  __pyx_codeobj__35 = (PyObject*)__Pyx_PyCode_New(7, 0, 16, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__34, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch_working_2015_12_dec, __pyx_n_s_calc_steady_state, 156, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__35)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 156; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_codeobj__35 = (PyObject*)__Pyx_PyCode_New(7, 0, 16, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__34, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch2_working_2015_12_de, __pyx_n_s_calc_steady_state, 156, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__35)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 156; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
   /* "rddeconv/fast_detector.pyx":198
  * 
@@ -21402,7 +21402,7 @@ static int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__36 = PyTuple_Pack(11, __pyx_n_s_timestep, __pyx_n_s_interpolation_mode, __pyx_n_s_external_radon_conc, __pyx_n_s_internal_airt_history, __pyx_n_s_initial_state, __pyx_n_s_parameters, __pyx_n_s_new_is, __pyx_n_s_N_times, __pyx_n_s_output_dims, __pyx_n_s_state_history, __pyx_n_s_err); if (unlikely(!__pyx_tuple__36)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 198; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_tuple__36);
   __Pyx_GIVEREF(__pyx_tuple__36);
-  __pyx_codeobj__37 = (PyObject*)__Pyx_PyCode_New(6, 0, 11, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__36, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch_working_2015_12_dec, __pyx_n_s_detector_model, 198, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__37)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 198; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_codeobj__37 = (PyObject*)__Pyx_PyCode_New(6, 0, 11, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__36, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch2_working_2015_12_de, __pyx_n_s_detector_model, 198, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__37)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 198; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
   /* "rddeconv/fast_detector.pyx":303
  * @cython.boundscheck(False)
@@ -21414,7 +21414,7 @@ static int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__38 = PyTuple_Pack(7, __pyx_n_s_radon_conc, __pyx_n_s_N, __pyx_n_s_ii, __pyx_n_s_p, __pyx_n_s_rnsum, __pyx_n_s_tmp, __pyx_n_s_acc); if (unlikely(!__pyx_tuple__38)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 303; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_tuple__38);
   __Pyx_GIVEREF(__pyx_tuple__38);
-  __pyx_codeobj__39 = (PyObject*)__Pyx_PyCode_New(1, 0, 7, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__38, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch_working_2015_12_dec, __pyx_n_s_transform_radon_concs, 303, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__39)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 303; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_codeobj__39 = (PyObject*)__Pyx_PyCode_New(1, 0, 7, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__38, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch2_working_2015_12_de, __pyx_n_s_transform_radon_concs, 303, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__39)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 303; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
   /* "rddeconv/fast_detector.pyx":380
  *     return 0
@@ -21426,7 +21426,7 @@ static int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__40 = PyTuple_Pack(19, __pyx_n_s_p, __pyx_n_s_parameters, __pyx_n_s_lb, __pyx_n_s_ub, __pyx_n_s_nhyper, __pyx_n_s_nstate, __pyx_n_s_lower_bounds, __pyx_n_s_upper_bounds, __pyx_n_s_state, __pyx_n_s_logstate, __pyx_n_s_hyper, __pyx_n_s_Q_external, __pyx_n_s_Q, __pyx_n_s_rs, __pyx_n_s_lamp, __pyx_n_s_t_delay, __pyx_n_s_eff, __pyx_n_s_radon_conc_p, __pyx_n_s_x); if (unlikely(!__pyx_tuple__40)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 380; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_tuple__40);
   __Pyx_GIVEREF(__pyx_tuple__40);
-  __pyx_codeobj__41 = (PyObject*)__Pyx_PyCode_New(2, 0, 19, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__40, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch_working_2015_12_dec, __pyx_n_s_transform_parameters, 380, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__41)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 380; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_codeobj__41 = (PyObject*)__Pyx_PyCode_New(2, 0, 19, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__40, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_mnt_scratch2_working_2015_12_de, __pyx_n_s_transform_parameters, 380, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__41)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 380; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
   /* "View.MemoryView":278
  *         return self.name

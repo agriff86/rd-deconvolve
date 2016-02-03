@@ -35,6 +35,9 @@ lama = 0.0037876895112565318
 lamb = 0.00043106167945270227
 lamc = 0.00058052527685087548
 
+def is_string(s):
+    return isinstance(s, basestring)
+
 def detector_model_wrapper(timestep, initial_state, external_radon_conc,
                            internal_airt_history,
                            parameters, interpolation_mode=1,
@@ -775,7 +778,8 @@ def emcee_deconvolve_tm(df, col_name='lld',
             recoil_prob = 0.5*(1-rs),
             t_delay = 10.0,
             total_efficiency=0.128,
-            total_efficiency_frac_error=0.05)
+            total_efficiency_frac_error=0.05,
+            background_count_rate=1/60.0)
 
     # the internal airt history should already have been converted to K
     internal_airt_history = df['airt'].values
@@ -788,6 +792,15 @@ def emcee_deconvolve_tm(df, col_name='lld',
 
     # update with prescribed parameters
     parameters.update(model_parameters)
+
+    # background and total_efficiency might be specified as DataFrame columns
+    if is_string(parameters['total_efficiency']):
+        colname_te = parameters['total_efficiency']
+        parameters['total_efficiency'] = df[colname_te].mean()
+    if is_string(parameters['background_count_rate']):
+        colname_te = parameters['background_count_rate']
+        parameters['background_count_rate'] = df[colname_te].mean()
+
     # detector overall efficiency - check it's close to the prescribed efficiency
     # TODO: should eff be adjusted here?
     rs = parameters['rs']
