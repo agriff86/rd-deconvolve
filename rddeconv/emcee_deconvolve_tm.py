@@ -223,10 +223,10 @@ def lnprior_hyperparameters(p, parameters):
         print(np.array(parameters['variable_parameter_names'])[exidx],
               ub[exidx],
               variable_parameters[exidx])
-        print('parameter upper bound exceeded.')
+        #print('parameter upper bound exceeded.')
         lp = -np.inf
     elif not np.alltrue(variable_parameters >= lb):
-        print('parameter lower bound exceeded.')
+        #print('parameter lower bound exceeded.')
         lp = -np.inf
     else:
         # assume that all priors are normally-distributed
