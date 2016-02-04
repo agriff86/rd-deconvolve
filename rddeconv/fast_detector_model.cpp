@@ -152,6 +152,7 @@ state_type calc_steady_state(double Nrn, double Q, double rs, double lamp,
     // pack output into vector
     Yss.push_back(Nrn);
     Yss.push_back(Nrn);
+    Yss.push_back(Nrn);
     Yss.push_back(Fa);
     Yss.push_back(Fb);
     Yss.push_back(Fc);
@@ -174,6 +175,7 @@ struct two_filter_detector {
     double eff;
     double Q_external;
     double V_delay;
+    double V_delay_2;
     double V_tank;
     double t_delay;
     double recoil_prob;
@@ -195,6 +197,7 @@ struct two_filter_detector {
         eff = *parameters++;
         Q_external = *parameters++;
         V_delay = *parameters++;
+        V_delay_2 = *parameters++;
         V_tank = *parameters++;
         t_delay = *parameters++;
         recoil_prob = *parameters++;
@@ -212,6 +215,7 @@ struct two_filter_detector {
                   << "eff: " << eff << std::endl
                   << "Q_external: " << Q_external << std::endl
                   << "V_delay: " << V_delay << std::endl
+                  << "V_delay_2: " << V_delay_2 << std::endl
                   << "V_tank: " << V_tank << std::endl
                   << "t_delay: " << t_delay << std::endl
                   << "recoil_prob: " << recoil_prob << std::endl;
@@ -232,10 +236,10 @@ struct two_filter_detector {
 
     void operator() ( const state_type &x , state_type &dxdt , const double t )
     {
-        double Nrnd, Nrn, Fa, Fb, Fc;
+        double Nrnd, Nrnd2, Nrn, Fa, Fb, Fc;
         double Nrn_inj; //radon concentration from source injected at inlet
         double Nrn_cal; //radon concentration from calibration source
-        double dNrnddt, dNrndt, dFadt, dFbdt, dFcdt, dAcc_countsdt;
+        double dNrnddt, dNrnd2dt, dNrndt, dFadt, dFbdt, dFcdt, dAcc_countsdt;
         double tt, Na, Nb, Nc;
         // boundary condition
         double Nrn_ext = m_bc(t - t_delay);
@@ -247,6 +251,7 @@ struct two_filter_detector {
         // copied from theoretical_model.py:detector_state_rate_of_change...
         // unpack state vector
         Nrnd = x[IDX_Nrnd];
+        Nrnd2 = x[IDX_Nrnd2];
         Nrn = x[IDX_Nrn];
         Fa = x[IDX_Fa];
         Fb = x[IDX_Fb];
@@ -278,22 +283,44 @@ struct two_filter_detector {
         {
             Nrn_cal = 0;
         }
+
+        // make sure that we can't have V_delay_2 > 0 when V_delay == 0
+        if (V_delay == 0 && V_delay_2 > 0)
+        {
+          V_delay = V_delay_2;
+          V_delay_2 = 0;
+        }
+
         // effect of delay and tank volumes (allow V_delay to be zero)
-        if (V_delay == 0.0)
+        if (V_delay == 0.0) // no delay tanks
         {
             dNrndt = Q_external / V_tank * (Nrn_ext + Nrn_cal + Nrn_inj - Nrn)
                      - Nrn*lamrn;
-            // Nrnd becomes unimportant, but we need to do something with it
+            // Nrnd,Nrnd2 become unimportant, but we need to do something with them
             // so just apply the same equation as for Nrn
             dNrnddt = Q_external / V_tank * (Nrn_ext + Nrn_cal + Nrn_inj - Nrnd)
                       - Nrnd*lamrn;
+            dNrnd2dt = Q_external / V_tank * (Nrn_ext + Nrn_cal + Nrn_inj - Nrnd2)
+                                - Nrnd2*lamrn;
         }
-        else
+        else if (V_delay > 0.0 && V_delay_2 == 0.0) //one delay tank
+        {
+          dNrnddt = Q_external / V_delay * (Nrn_ext + Nrn_inj - Nrnd)
+                                                                - Nrnd*lamrn;
+          dNrndt = Q_external / V_tank * (Nrnd + Nrn_cal - Nrn) - Nrn*lamrn;
+          // unused, but apply same eqn as delay tank 1
+          dNrnd2dt = Q_external / V_delay * (Nrn_ext + Nrn_inj - Nrnd2)
+                                                               - Nrnd2*lamrn;
+        }
+        else // two delay tanks
         {
             dNrnddt = Q_external / V_delay * (Nrn_ext + Nrn_inj - Nrnd)
                                                                   - Nrnd*lamrn;
-            dNrndt = Q_external / V_tank * (Nrnd + Nrn_cal - Nrn) - Nrn*lamrn;
+            dNrnd2dt = Q_external / V_delay_2 * (Nrnd - Nrnd2) - Nrnd2*lamrn;
+            dNrndt = Q_external / V_tank * (Nrnd2 + Nrn_cal - Nrn) - Nrn*lamrn;
         }
+
+
         // effect of temperature changes causing the tank to 'breathe'
         dNrndt -= Nrnd * dTdt/T;
         // Na, Nb, Nc from steady-state in tank
@@ -307,6 +334,7 @@ struct two_filter_detector {
         dAcc_countsdt = eff*(Fa*lama + Fc*lamc);
         // pack into dxdt
         dxdt[IDX_Nrnd] = dNrnddt;
+        dxdt[IDX_Nrnd2] = dNrnd2dt;
         dxdt[IDX_Nrn] = dNrndt;
         dxdt[IDX_Fa] = dFadt;
         dxdt[IDX_Fb] = dFbdt;

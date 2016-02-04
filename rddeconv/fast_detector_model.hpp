@@ -23,19 +23,20 @@ const double lama = 0.0037876895112565318;
 const double lamb = 0.00043106167945270227;
 const double lamc = 0.00058052527685087548;
 
-// state vector:  Nrnd, Nrn, Fa, Fb, Fc, Acc_counts
-const int NUM_STATE_VARIABLES = 6;
+// state vector:  Nrnd, Nrnd2, Nrn, Fa, Fb, Fc, Acc_counts
+const int NUM_STATE_VARIABLES = 7;
 
 const int IDX_Nrnd = 0;
-const int IDX_Nrn = 1;
-const int IDX_Fa = 2;
-const int IDX_Fb = 3;
-const int IDX_Fc = 4;
-const int IDX_Acc_counts = 5;
+const int IDX_Nrnd2 = 1;
+const int IDX_Nrn = 2;
+const int IDX_Fa = 3;
+const int IDX_Fb = 4;
+const int IDX_Fc = 5;
+const int IDX_Acc_counts = 6;
 
 
 // model parameters
-const int NUM_PARAMETERS = 15;
+const int NUM_PARAMETERS = 16;
 
 
 #endif

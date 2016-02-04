@@ -25,8 +25,8 @@ from scipy.stats import poisson, norm, lognorm
 import emcee
 
 
-from . import fast_detector
-from . import util
+from rddeconv import fast_detector
+from rddeconv import util
 
 # constants for radon decay and daughers
 radon_chain_half_life = np.array([3.82*24*3600, #Rn-222 (3.82 d)
@@ -404,7 +404,7 @@ def detector_model_wrapper(timestep, initial_state, external_radon_conc,
                                   internal_airt_history,
                                   initial_state, params)
     df = pd.DataFrame(index=t/60.0, data=soln)
-    df.columns = 'Nrnd,Nrn,Fa,Fb,Fc,Acc_counts'.split(',')
+    df.columns = 'Nrnd,Nrnd2,Nrn,Fa,Fb,Fc,Acc_counts'.split(',')
     eff = parameters['eff']
     df['count rate'] = eff*(df.Fa*lama + df.Fc*lamc)
     if return_full_state:
@@ -455,10 +455,24 @@ def test_detector_model(doplots=False):
     internal_airt_history = np.zeros(len(t)) + 300.0
 
     # parameters['t_delay'] -= 60.0
-
+    Y0 = np.zeros(fast_detector.N_state)
     df2 = detector_model_wrapper(timestep, Y0, external_radon_conc,
                                  internal_airt_history,
                                  interpolation_mode=0, parameters=parameters)
+
+    # add a second delay tank
+    parameters['V_delay_2'] = 0.2
+    df3 = detector_model_wrapper(timestep, Y0, external_radon_conc,
+                                 internal_airt_history,
+                                 interpolation_mode=0, parameters=parameters)
+    parameters['V_delay_2'] = 0.0
+    if doplots:
+        fig, ax = plt.subplots()
+        df2[['Nrnd','Nrnd2','Nrn']].plot(ax=ax)
+        ax.set_title('One delay tank')
+        fig, ax = plt.subplots()
+        df3[['Nrnd','Nrnd2','Nrn']].plot(ax=ax)
+        ax.set_title('Two delay tanks')
 
 
     dfp = detector_model(t, Q=Q*2)

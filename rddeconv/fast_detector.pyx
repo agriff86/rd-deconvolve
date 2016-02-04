@@ -68,6 +68,7 @@ def parameter_array_from_dict(parameter_dict):
                                  parameter_dict['eff'],
                                  parameter_dict['Q_external'],
                                  parameter_dict['V_delay'],
+                                 parameter_dict.get('V_delay_2',0.0),
                                  parameter_dict['V_tank'],
                                  parameter_dict['t_delay'],
                                  parameter_dict['recoil_prob'],
@@ -165,7 +166,7 @@ def calc_steady_state(double Nrn, double Q, double rs, double lamp,
 
     Returns
     -------
-    Yss : ndarray [Nrnd, Nrn, Fa, Fb, Fc]
+    Yss : ndarray [Nrnd, Nrnd2, Nrn, Fa, Fb, Fc]
 
     """
     # transit time assuming plug flow in the tank
@@ -184,13 +185,14 @@ def calc_steady_state(double Nrn, double Q, double rs, double lamp,
     Fc = (Q*rs*Nc + Fb*lamb) / lamc
     cdef double Acc_counts = eff*(Fa*lama + Fc*lamc)
     cdef np.ndarray[np.double_t, ndim=1,
-                mode="c"] Yss = np.empty(6)
+                mode="c"] Yss = np.empty(NUM_STATE_VARIABLES)
     Yss[0] = Nrn
     Yss[1] = Nrn
-    Yss[2] = Fa
-    Yss[3] = Fb
-    Yss[4] = Fc
-    Yss[5] = Acc_counts
+    Yss[2] = Nrn
+    Yss[3] = Fa
+    Yss[4] = Fb
+    Yss[5] = Fc
+    Yss[6] = Acc_counts
     return Yss
 
 

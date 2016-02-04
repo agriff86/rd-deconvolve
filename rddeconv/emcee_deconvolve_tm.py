@@ -51,7 +51,7 @@ def detector_model_wrapper(timestep, initial_state, external_radon_conc,
                                   external_radon_conc, internal_airt_history,
                                   initial_state, params)
     df = pd.DataFrame(index=t/60.0, data=soln)
-    df.columns = 'Nrnd,Nrn,Fa,Fb,Fc,Acc_counts'.split(',')
+    df.columns = 'Nrnd,Nrnd2,Nrn,Fa,Fb,Fc,Acc_counts'.split(',')
     eff = parameters['eff']
     df['count rate'] = eff*(df.Fa*lama + df.Fc*lamc)
     if return_full_state:
@@ -393,7 +393,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
                         V_tank=parameters['V_tank'],
                         recoil_prob=parameters['recoil_prob'],
                         eff=parameters['eff'])
-    Nrnd,Nrn,Fa,Fb,Fc, Acc_counts = Y0
+    Nrnd,Nrnd2,Nrn,Fa,Fb,Fc, Acc_counts = Y0
     expected_counts = parameters['eff']*(Fa*lama + Fc*lamc) * (t[1]-t[0])
     scale_factor = observed_counts[0] / expected_counts
     Y0_mu_prior = Y0 * scale_factor
@@ -794,12 +794,16 @@ def emcee_deconvolve_tm(df, col_name='lld',
     parameters.update(model_parameters)
 
     # background and total_efficiency might be specified as DataFrame columns
+    eff_from_df = False
     if is_string(parameters['total_efficiency']):
         colname_te = parameters['total_efficiency']
         parameters['total_efficiency'] = df[colname_te].mean()
+        eff_from_df = True
+    bg_from_df = False
     if is_string(parameters['background_count_rate']):
         colname_te = parameters['background_count_rate']
         parameters['background_count_rate'] = df[colname_te].mean()
+        bg_from_df = True
 
     # detector overall efficiency - check it's close to the prescribed efficiency
     # TODO: should eff be adjusted here?
@@ -811,8 +815,15 @@ def emcee_deconvolve_tm(df, col_name='lld',
                                 recoil_prob=0.5*(1-rs),
                                 eff=parameters['eff'])
     total_efficiency = Y0eff[-1]
-    print("computed total eff:", total_efficiency, "  prescribed:", parameters['total_efficiency'])
+    print("computed total eff:", total_efficiency, "  prescribed:",
+                                                parameters['total_efficiency'])
 
+    if eff_from_df:
+        print('Adjusting "eff" parameter so that computed efficiency matches '+
+              'prescribed')
+        print('  old value of eff:', parameters['eff'])
+        parameters['eff'] = parameters['total_efficiency'] / total_efficiency * parameters['eff']
+        print('  new value of eff:', parameters['eff'])
 
     # priors
     variable_parameter_names = 'Q_external', 'Q', 'rs', 'lamp', 't_delay', 'eff'
