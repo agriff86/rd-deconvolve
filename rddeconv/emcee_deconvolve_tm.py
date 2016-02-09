@@ -240,14 +240,14 @@ def lnprior_Y0(Y0, parameters):
     """
     if Y0.min() <= 0.0:
         return -np.inf
+    Y0_mu_prior = parameters['Y0_mu_prior']
     # note - for parameter definitions see
     # http://nbviewer.ipython.org/url/xweb.geos.ed.ac.uk/~jsteven5/blog/lognormal_distributions.ipynb
-    sigma = np.log(2.0) # Standard deviation of log(X) - factor of two
+    sigma = np.log(2.0)/np.log(Y0_mu_prior) # Standard deviation of log(X) - factor of two
     shape = sigma # Scipy's shape parameter
-    Y0_mu_prior = parameters['Y0_mu_prior']
     scale = Y0_mu_prior # Scipy's scale parameter = np.exp( mean of log(X) )
     ret = lognorm.logpdf(Y0, shape, loc=0, scale=scale)
-    ret = ret.sum()
+    ret = ret[:-1].sum()  # the last state variable (Acc_counts) isn't constrained
     return ret
 
 def lnprior_difference(radon_concentration_timeseries, parameters):
@@ -396,7 +396,8 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     Nrnd,Nrnd2,Nrn,Fa,Fb,Fc, Acc_counts = Y0
     expected_counts = parameters['eff']*(Fa*lama + Fc*lamc) * (t[1]-t[0])
     scale_factor = observed_counts[0] / expected_counts
-    Y0_mu_prior = Y0 * scale_factor
+    Y0 *= scale_factor
+    Y0_mu_prior = Y0.copy()
 
     parameters.update( dict(Y0_mu_prior=Y0_mu_prior) )
 
@@ -436,7 +437,8 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         radon_conc = rltv_radon_timeseries.copy()
 
-        print("should be close to 1:", radon_conc.sum()/observed_counts.sum())
+        print("RLTV should preserve total counts, this should be close to 1:",
+                        radon_conc.sum()/observed_counts.sum())
 
         # don't accept radon concentration less than 30 mBq/m3 in the guess
         mbq30 = 100 # TODO: this is counts, work out a proper threshold 30e-3/tm.lamrn
@@ -482,7 +484,9 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         p = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, radon_conc)
         modcounts = detector_model_specialised(p, parameters)
-        print("should be close to 1:", modcounts.sum()/observed_counts.sum())
+        print("Model initial guess should preserve total counts.")
+        print("this should be close to 1:",
+                                modcounts.sum()/observed_counts.sum())
         f, ax = plt.subplots()
         ax.plot(observed_counts, label='obs')
         ax.plot(np.r_[np.nan, modcounts], label='model') # padding needed? TODO: check
