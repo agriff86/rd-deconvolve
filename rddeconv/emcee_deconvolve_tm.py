@@ -667,22 +667,24 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     else:
         pool = None
 
-    # sampler
-    sampler = emcee.EnsembleSampler(Nwalker,Ndim,lnprob,
-                                    args=(parameters,),
-                                    pool=pool,
-                                    a=2.0)  #default value of a is 2.0
-    # burn-in
-    pos,prob,state = sampler.run_mcmc(p0, iterations,
-                                    storechain=keep_burn_in_samples, thin=thin)
+    with util.timewith("EMCEE Sampling"):
+        # sampler
+        sampler = emcee.EnsembleSampler(Nwalker,Ndim,lnprob,
+                                        args=(parameters,),
+                                        pool=pool,
+                                        a=2.0)  #default value of a is 2.0
+        # burn-in
+        pos,prob,state = sampler.run_mcmc(p0, iterations,
+                                        storechain=keep_burn_in_samples, thin=thin)
 
-    # sample
-    pos,prob,state = sampler.run_mcmc(pos, iterations, thin=thin)
+        # sample
+        pos,prob,state = sampler.run_mcmc(pos, iterations, thin=thin)
 
     print('EnsembleSampler mean acceptance fraction during sampling:',
             sampler.acceptance_fraction.mean())
 
-    assert sampler.acceptance_fraction.mean() > 0.05
+    #assert sampler.acceptance_fraction.mean() > 0.05
+
     # restore the radon concentrations in sampler.chain to their true values
     # (instead of the sequence of coefficients)
     Nch, Nit, Np = sampler.chain.shape
@@ -891,7 +893,8 @@ def emcee_deconvolve_tm(df, col_name='lld',
          col_name + '_p50': percentiles[2],
          col_name + '_p84': percentiles[3],
          col_name + '_p90': percentiles[4],
-         col_name + '_scaled' : scaled_obs}
+         col_name + '_scaled' : scaled_obs,
+         col_name + '_sampler_acceptance_fraction' : sampler.acceptance_fraction.mean()}
 
     # average-over-sampling-period values (only if interpolation_mode==1)
     if parameters['interpolation_mode'] == 1:
