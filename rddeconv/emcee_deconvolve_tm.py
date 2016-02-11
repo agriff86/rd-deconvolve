@@ -159,8 +159,8 @@ def detector_model_specialised(p, parameters):
                                             parameters['interpolation_mode'])
     detector_count_rate = cr
 
-    if parameters.has_key('detector_background_cps'):
-       detector_count_rate += parameters['detector_background_cps'] * parameters['tres']
+    if parameters.has_key('background_count_rate'):
+       detector_count_rate += parameters['background_count_rate'] * parameters['tres']
 
     return detector_count_rate
 
@@ -726,14 +726,24 @@ def overlapping_chunk_dataframe_iterator(df, chunksize, overlap=0):
 def chunkwise_apply(df, chunksize, overlap, func, func_args=(), func_kwargs={},
                     nproc=1):
     chunks = overlapping_chunk_dataframe_iterator(df, chunksize, overlap)
+
+    def protected_func(itm, *func_args, **func_kwargs):
+        try:
+            return func(itm, *func_args, **func_kwargs)
+        except Exception as e:
+            print(func.__name__, ' encounted an exception ', e)
+            return None
+
     if nproc == 1:
-        results = [func(itm, *func_args, **func_kwargs) for itm in chunks]
+        results = [protected_func(itm, *func_args, **func_kwargs) for itm in chunks]
     else:
         # parallel version
         from joblib import Parallel, delayed
         par = Parallel(n_jobs=nproc, verbose=50)
-        results = par(delayed(func)(itm, *func_args, **func_kwargs)
+        results = par(delayed(protected_func)(itm, *func_args, **func_kwargs)
                                  for itm in chunks)
+    # filter out results which encounted an error during processing
+    results = [itm for itm in results if itm is not None]
     # add a chunk_id field
     for ii,itm in enumerate(results):
         itm['chunk_id'] = ii
@@ -791,25 +801,23 @@ def emcee_deconvolve_tm(df, col_name='lld',
     internal_airt_history = df['airt'].values
     if not internal_airt_history.min() > 200.0:
         print("'airt' needs to be in K at the observation time")
-        assert(False)
+        raise ValueError("'airt' needs to be in K at the observation time")
     if not internal_airt_history.max() < 400:
         print("error in 'airt'")
-        assert(False)
+        raise ValueError('airt too high',internal_airt_history.max())
 
     # update with prescribed parameters
     parameters.update(model_parameters)
 
-    # background and total_efficiency might be specified as DataFrame columns
-    eff_from_df = False
-    if is_string(parameters['total_efficiency']):
-        colname_te = parameters['total_efficiency']
-        parameters['total_efficiency'] = df[colname_te].mean()
-        eff_from_df = True
-    bg_from_df = False
-    if is_string(parameters['background_count_rate']):
-        colname_te = parameters['background_count_rate']
-        parameters['background_count_rate'] = df[colname_te].mean()
-        bg_from_df = True
+    # some of the parameters might be specified as DataFrame columns
+    possible_params_from_dataframe = ['total_efficiency', 'background_count_rate',
+                             'Q_external']
+    params_from_dataframe = []
+    for param_name in possible_params_from_dataframe:
+        if is_string(parameters[param_name]):
+            column_name = parameters[param_name]
+            parameters[param_name] = df[column_name].mean()
+            params_from_dataframe.append(param_name)
 
     # detector overall efficiency - check it's close to the prescribed efficiency
     # TODO: should eff be adjusted here?
@@ -824,7 +832,7 @@ def emcee_deconvolve_tm(df, col_name='lld',
     print("computed total eff:", total_efficiency, "  prescribed:",
                                                 parameters['total_efficiency'])
 
-    if eff_from_df:
+    if 'total_efficiency' in params_from_dataframe:
         print('Adjusting "eff" parameter so that computed efficiency matches '+
               'prescribed')
         print('  old value of eff:', parameters['eff'])
@@ -1123,7 +1131,7 @@ def test_df_deconvolve_cabauw(nproc, one_night_only=False):
     parameters['interpolation_mode'] = 1
     parameters['lamp'] /= 2.0 # bigger tank, lower plateout (but dunno for sure)
     parameters['t_delay'] = 60.0
-    parameters['detector_background_cps'] = 50./1800
+    parameters['background_count_rate'] = 50./1800
 
     parameters['recoil_prob'] = 0.5*(1-parameters['rs'])
     parameters['t_delay'] = 30.0
@@ -1198,7 +1206,7 @@ def test_df_deconvolve_richmond(nproc, one_night_only=False):
     parameters['interpolation_mode'] = 1
     parameters['lamp'] /= 2.0 # bigger tank, lower plateout (but dunno for sure)
     parameters['t_delay'] = 60.0
-    parameters['detector_background_cps'] = 500./3600
+    parameters['background_count_rate'] = 500./3600
 
     parameters['recoil_prob'] = 0.5*(1-parameters['rs'])
     parameters['t_delay'] = 30.0
