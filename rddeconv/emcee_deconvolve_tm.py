@@ -946,6 +946,9 @@ def emcee_deconvolve_tm(df, col_name='lld',
     f, ax = plt.subplots()
     plot_cols = [itm for itm in dfret.columns if col_name+'_' in itm]
     dfret[plot_cols].plot(ax=ax)
+
+    plt.close('all')
+
     if short_output:
         ret = dfret
     else:
