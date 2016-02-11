@@ -727,20 +727,13 @@ def chunkwise_apply(df, chunksize, overlap, func, func_args=(), func_kwargs={},
                     nproc=1):
     chunks = overlapping_chunk_dataframe_iterator(df, chunksize, overlap)
 
-    def protected_func(itm, *func_args, **func_kwargs):
-        try:
-            return func(itm, *func_args, **func_kwargs)
-        except Exception as e:
-            print(func.__name__, ' encounted an exception ', e)
-            return None
-
     if nproc == 1:
-        results = [protected_func(itm, *func_args, **func_kwargs) for itm in chunks]
+        results = [func(itm, *func_args, **func_kwargs) for itm in chunks]
     else:
         # parallel version
         from joblib import Parallel, delayed
         par = Parallel(n_jobs=nproc, verbose=50)
-        results = par(delayed(protected_func)(itm, *func_args, **func_kwargs)
+        results = par(delayed(func)(itm, *func_args, **func_kwargs)
                                  for itm in chunks)
     # filter out results which encounted an error during processing
     results = [itm for itm in results if itm is not None]
@@ -759,7 +752,8 @@ def emcee_deconvolve_tm(df, col_name='lld',
                     iterations=500, nthreads=1,
                     nproc=1,
                     keep_burn_in_samples=False, thin=1,
-                    walkers_per_dim=3, chunksize=None, overlap=None, short_output=True):
+                    walkers_per_dim=3, chunksize=None, overlap=None, short_output=True,
+                    stop_on_error=False):
     if chunksize is not None:
         assert overlap is not None
         chunks = overlapping_chunk_dataframe_iterator(df, chunksize, overlap)
@@ -779,180 +773,192 @@ def emcee_deconvolve_tm(df, col_name='lld',
                                              nproc=nproc)
 
         return dfret
-    #
-    # default parameters for theoretical model of detector
-    #
-    rs = 0.76
-    parameters = dict(
-            Q = 0.0122,
-            rs = rs,
-            lamp = 1/180.0,
-            eff = 0.15,
-            Q_external = 40.0 / 60.0 / 1000.0,
-            V_delay = 200.0 / 1000.0,
-            V_tank = 750.0 / 1000.0,
-            recoil_prob = 0.5*(1-rs),
-            t_delay = 10.0,
-            total_efficiency=0.128,
-            total_efficiency_frac_error=0.05,
-            background_count_rate=1/60.0)
 
-    # the internal airt history should already have been converted to K
-    internal_airt_history = df['airt'].values
-    if not internal_airt_history.min() > 200.0:
-        print("'airt' needs to be in K at the observation time")
-        raise ValueError("'airt' needs to be in K at the observation time")
-    if not internal_airt_history.max() < 400:
-        print("error in 'airt'")
-        raise ValueError('airt too high',internal_airt_history.max())
+    try:
+        #
+        # default parameters for theoretical model of detector
+        #
+        rs = 0.76
+        parameters = dict(
+                Q = 0.0122,
+                rs = rs,
+                lamp = 1/180.0,
+                eff = 0.15,
+                Q_external = 40.0 / 60.0 / 1000.0,
+                V_delay = 200.0 / 1000.0,
+                V_tank = 750.0 / 1000.0,
+                recoil_prob = 0.5*(1-rs),
+                t_delay = 10.0,
+                total_efficiency=0.128,
+                total_efficiency_frac_error=0.05,
+                background_count_rate=1/60.0)
 
-    # update with prescribed parameters
-    parameters.update(model_parameters)
+        # the internal airt history should already have been converted to K
+        internal_airt_history = df['airt'].values
+        if not internal_airt_history.min() > 200.0:
+            print("'airt' needs to be in K at the observation time")
+            raise ValueError("'airt' needs to be in K at the observation time")
+        if not internal_airt_history.max() < 400:
+            print("error in 'airt'")
+            raise ValueError('airt too high',internal_airt_history.max())
 
-    # some of the parameters might be specified as DataFrame columns
-    possible_params_from_dataframe = ['total_efficiency', 'background_count_rate',
-                             'Q_external']
-    params_from_dataframe = []
-    for param_name in possible_params_from_dataframe:
-        if is_string(parameters[param_name]):
-            column_name = parameters[param_name]
-            parameters[param_name] = df[column_name].mean()
-            params_from_dataframe.append(param_name)
+        # update with prescribed parameters
+        parameters.update(model_parameters)
 
-    # detector overall efficiency - check it's close to the prescribed efficiency
-    # TODO: should eff be adjusted here?
-    rs = parameters['rs']
-    Y0eff = fast_detector.calc_steady_state(1/lamrn,
-                                Q=parameters['Q'], rs=rs,
-                                lamp=parameters['lamp'],
-                                V_tank=parameters['V_tank'],
-                                recoil_prob=0.5*(1-rs),
-                                eff=parameters['eff'])
-    total_efficiency = Y0eff[-1]
-    print("computed total eff:", total_efficiency, "  prescribed:",
-                                                parameters['total_efficiency'])
+        # some of the parameters might be specified as DataFrame columns
+        possible_params_from_dataframe = ['total_efficiency', 'background_count_rate',
+                                 'Q_external']
+        params_from_dataframe = []
+        for param_name in possible_params_from_dataframe:
+            if is_string(parameters[param_name]):
+                column_name = parameters[param_name]
+                parameters[param_name] = df[column_name].mean()
+                params_from_dataframe.append(param_name)
+                print(param_name,'from data:', parameters[param_name])
 
-    if 'total_efficiency' in params_from_dataframe:
-        print('Adjusting "eff" parameter so that computed efficiency matches '+
-              'prescribed')
-        print('  old value of eff:', parameters['eff'])
-        parameters['eff'] = parameters['total_efficiency'] / total_efficiency * parameters['eff']
-        print('  new value of eff:', parameters['eff'])
+        # detector overall efficiency - check it's close to the prescribed efficiency
+        # TODO: should eff be adjusted here?
+        rs = parameters['rs']
+        Y0eff = fast_detector.calc_steady_state(1/lamrn,
+                                    Q=parameters['Q'], rs=rs,
+                                    lamp=parameters['lamp'],
+                                    V_tank=parameters['V_tank'],
+                                    recoil_prob=0.5*(1-rs),
+                                    eff=parameters['eff'])
+        total_efficiency = Y0eff[-1]
+        print("computed total eff:", total_efficiency, "  prescribed:",
+                                                    parameters['total_efficiency'])
 
-    # priors
-    variable_parameter_names = 'Q_external', 'Q', 'rs', 'lamp', 't_delay', 'eff'
-    variable_parameters_mu_prior = np.array(
-                            [parameters[k] for k in variable_parameter_names])
-    variable_parameters_sigma_prior = np.array([parameters['Q_external'] * 0.02,
-                                             parameters['Q']*0.2,
-                                             0.05,
-                                             1/100.0,
-                                             1.,
-                                             0.05*parameters['eff']])
+        if 'total_efficiency' in params_from_dataframe:
+            print('Adjusting "eff" parameter so that computed efficiency matches '+
+                  'prescribed')
+            print('  old value of eff:', parameters['eff'])
+            parameters['eff'] = parameters['total_efficiency'] / total_efficiency * parameters['eff']
+            print('  new value of eff:', parameters['eff'])
 
-    parameters['variable_parameter_lower_bounds'] = np.array([0.0, 0.0, 0.0, 0.0, -np.inf, 0.0])
-    parameters['variable_parameter_upper_bounds'] = np.array([np.inf, np.inf, 2.0, np.inf, np.inf, np.inf])
+        # priors
+        variable_parameter_names = 'Q_external', 'Q', 'rs', 'lamp', 't_delay', 'eff'
+        variable_parameters_mu_prior = np.array(
+                                [parameters[k] for k in variable_parameter_names])
+        variable_parameters_sigma_prior = np.array([parameters['Q_external'] * 0.02,
+                                                 parameters['Q']*0.2,
+                                                 0.05,
+                                                 1/100.0,
+                                                 1.,
+                                                 0.05*parameters['eff']])
 
-    # extract time in seconds
-    times = df.index.to_pydatetime()
-    tzero = times[0]
-    t = np.array([ (itm-tzero).total_seconds() for itm in times])
-    tres = t[1] - t[0]
+        parameters['variable_parameter_lower_bounds'] = np.array([0.0, 0.0, 0.0, 0.0, -np.inf, 0.0])
+        parameters['variable_parameter_upper_bounds'] = np.array([np.inf, np.inf, 2.0, np.inf, np.inf, np.inf])
 
-    with util.timewith("emcee deconvolution") as timer:
-        #if chunksize is None:
-        #    print(df[col_name])
-        fit_ret = fit_parameters_to_obs(t, observed_counts=df[col_name].values,
-             internal_airt_history = internal_airt_history,
-             parameters=parameters,
-             variable_parameter_names = variable_parameter_names,
-             variable_parameters_mu_prior = variable_parameters_mu_prior,
-             variable_parameters_sigma_prior = variable_parameters_sigma_prior,
-             iterations=iterations,
-             keep_burn_in_samples=keep_burn_in_samples,
-             nthreads=nthreads)
+        # extract time in seconds
+        times = df.index.to_pydatetime()
+        tzero = times[0]
+        t = np.array([ (itm-tzero).total_seconds() for itm in times])
+        tres = t[1] - t[0]
 
-    (sampler, A, mean_est, low, high, parameters, map_radon_timeseries,
-    rl_radon_timeseries, rltv_radon_timeseries) = fit_ret
-    popt = A.mean(axis=0)
+        with util.timewith("emcee deconvolution") as timer:
+            #if chunksize is None:
+            #    print(df[col_name])
+            fit_ret = fit_parameters_to_obs(t, observed_counts=df[col_name].values,
+                 internal_airt_history = internal_airt_history,
+                 parameters=parameters,
+                 variable_parameter_names = variable_parameter_names,
+                 variable_parameters_mu_prior = variable_parameters_mu_prior,
+                 variable_parameters_sigma_prior = variable_parameters_sigma_prior,
+                 iterations=iterations,
+                 keep_burn_in_samples=keep_burn_in_samples,
+                 nthreads=nthreads)
 
-    #varying parameters
-    params_chain = A[:, parameters['nstate']:parameters['nhyper']+parameters['nstate']]
-    #radon concentration
-    radon_conc_chain = A[:, parameters['nhyper']+parameters['nstate']:]
+        (sampler, A, mean_est, low, high, parameters, map_radon_timeseries,
+        rl_radon_timeseries, rltv_radon_timeseries) = fit_ret
+        popt = A.mean(axis=0)
 
-    # initial state
-    b = sampler.chain[:, :, parameters['nhyper']+parameters['nstate']:]
+        #varying parameters
+        params_chain = A[:, parameters['nstate']:parameters['nhyper']+parameters['nstate']]
+        #radon concentration
+        radon_conc_chain = A[:, parameters['nhyper']+parameters['nstate']:]
 
-    #varying parameters as DataFrame
-    params_chain_df = pd.DataFrame(data = params_chain, columns=parameters['variable_parameter_names'])
-    #organise outputs into a DataFrame
-    mean_est = radon_conc_chain.mean(axis=0)
-    percentiles = np.percentile(radon_conc_chain, [10, 16, 50, 84, 90], axis=0)
-    # original counts scaled by net sensitivity
-    scfac = 1.0 / tres / parameters['total_efficiency'] / lamrn
-    scaled_obs = df[col_name] * scfac
-    d = {col_name + '_mean': mean_est,
-         col_name + '_map': map_radon_timeseries,
-         col_name + '_rl': rl_radon_timeseries * scfac,
-         col_name + '_rltv': rltv_radon_timeseries * scfac,
-         col_name + '_p10': percentiles[0],
-         col_name + '_p16': percentiles[1],
-         col_name + '_p50': percentiles[2],
-         col_name + '_p84': percentiles[3],
-         col_name + '_p90': percentiles[4],
-         col_name + '_scaled' : scaled_obs,
-         col_name + '_sampler_acceptance_fraction' : sampler.acceptance_fraction.mean()}
+        # initial state
+        b = sampler.chain[:, :, parameters['nhyper']+parameters['nstate']:]
 
-    # average-over-sampling-period values (only if interpolation_mode==1)
-    if parameters['interpolation_mode'] == 1:
-        tmp = radon_conc_chain.copy()
-        # N_samples, N_times = tmp.shape
-        tmp[:, 1:] = (tmp[:, 1:] + tmp[:, :-1]) / 2.0
-        #tmp[0,:] = np.NaN
-        mean_est = tmp.mean(axis=0)
-        percentiles = np.percentile(tmp, [10, 16, 50, 84, 90], axis=0)
-        d[col_name + 'av_mean'] = mean_est
-        d[col_name + 'av_p10'] = percentiles[0]
-        d[col_name + 'av_p16'] = percentiles[1]
-        d[col_name + 'av_p50'] = percentiles[2]
-        d[col_name + 'av_p84'] = percentiles[3]
-        d[col_name + 'av_p90'] = percentiles[4]
+        #varying parameters as DataFrame
+        params_chain_df = pd.DataFrame(data = params_chain, columns=parameters['variable_parameter_names'])
+        #organise outputs into a DataFrame
+        mean_est = radon_conc_chain.mean(axis=0)
+        percentiles = np.percentile(radon_conc_chain, [10, 16, 50, 84, 90], axis=0)
+        # original counts scaled by net sensitivity
+        scfac = 1.0 / tres / parameters['total_efficiency'] / lamrn
+        scaled_obs = df[col_name] * scfac
+        d = {col_name + '_mean': mean_est,
+             col_name + '_map': map_radon_timeseries,
+             col_name + '_rl': rl_radon_timeseries * scfac,
+             col_name + '_rltv': rltv_radon_timeseries * scfac,
+             col_name + '_p10': percentiles[0],
+             col_name + '_p16': percentiles[1],
+             col_name + '_p50': percentiles[2],
+             col_name + '_p84': percentiles[3],
+             col_name + '_p90': percentiles[4],
+             col_name + '_scaled' : scaled_obs,
+             col_name + '_sampler_acceptance_fraction' : sampler.acceptance_fraction.mean()}
 
-    # a bunch of samples from the distribution
-    N_samples = 1000 # TODO: make an argument
-    Ns,Nt = radon_conc_chain.shape
-    if N_samples>Ns:
-        N_samples = Ns
-    if N_samples > 0:
+        # average-over-sampling-period values (only if interpolation_mode==1)
         if parameters['interpolation_mode'] == 1:
-            instances = tmp
+            tmp = radon_conc_chain.copy()
+            # N_samples, N_times = tmp.shape
+            tmp[:, 1:] = (tmp[:, 1:] + tmp[:, :-1]) / 2.0
+            #tmp[0,:] = np.NaN
+            mean_est = tmp.mean(axis=0)
+            percentiles = np.percentile(tmp, [10, 16, 50, 84, 90], axis=0)
+            d[col_name + 'av_mean'] = mean_est
+            d[col_name + 'av_p10'] = percentiles[0]
+            d[col_name + 'av_p16'] = percentiles[1]
+            d[col_name + 'av_p50'] = percentiles[2]
+            d[col_name + 'av_p84'] = percentiles[3]
+            d[col_name + 'av_p90'] = percentiles[4]
+
+        # a bunch of samples from the distribution
+        N_samples = 1000 # TODO: make an argument
+        Ns,Nt = radon_conc_chain.shape
+        if N_samples>Ns:
+            N_samples = Ns
+        if N_samples > 0:
+            if parameters['interpolation_mode'] == 1:
+                instances = tmp
+            else:
+                instances = radon_conc_chain
+            take_idx = np.floor(np.linspace(0,Ns-1, N_samples)).astype(np.int)
+            sample_cols = []
+            for ii in range(N_samples):
+                k = col_name+'sample_'+str(ii)
+                sample_cols.append(k)
+                d[k] = instances[take_idx[ii]]
+
+        dfret = pd.DataFrame(data=d, index=df.index)
+
+        diagnostics = dict(raw_chain=sampler.chain,
+                           parameters=parameters,
+                           params_chain_df = params_chain_df,
+                           radon_conc_chain=radon_conc_chain)
+
+        f, ax = plt.subplots()
+        plot_cols = [itm for itm in dfret.columns if col_name+'_' in itm]
+        dfret[plot_cols].plot(ax=ax)
+
+        plt.show()
+        plt.close('all')
+
+        if short_output:
+            ret = dfret
         else:
-            instances = radon_conc_chain
-        take_idx = np.floor(np.linspace(0,Ns-1, N_samples)).astype(np.int)
-        sample_cols = []
-        for ii in range(N_samples):
-            k = col_name+'sample_'+str(ii)
-            sample_cols.append(k)
-            d[k] = instances[take_idx[ii]]
+            ret = dfret, diagnostics
 
-    dfret = pd.DataFrame(data=d, index=df.index)
-
-    diagnostics = dict(raw_chain=sampler.chain,
-                       parameters=parameters,
-                       params_chain_df = params_chain_df,
-                       radon_conc_chain=radon_conc_chain)
-
-    f, ax = plt.subplots()
-    plot_cols = [itm for itm in dfret.columns if col_name+'_' in itm]
-    dfret[plot_cols].plot(ax=ax)
-
-    plt.close('all')
-
-    if short_output:
-        ret = dfret
-    else:
-        ret = dfret, diagnostics
+    except Exception as e:
+        if stop_on_error: # or isinstance(e, (AssertionError, IndexError)):
+            raise
+        else:
+            ret = None
+            print(__name__, ' encounted an exception, but is trying to continue ',
+                                    type(e), e)
     return ret
 
 
