@@ -430,9 +430,17 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         #      when there's a zero in the one-sided prf (apparently)
         one_sided_prf = df['count rate'].values[:idx_90] + 0.000048
         one_sided_prf = one_sided_prf / one_sided_prf.sum()
-        rl_radon_timeseries = gen_initial_guess(observed_counts, one_sided_prf,
+        if parameters.has_key(background_count_rate):
+            background_counts = parameters['background_count_rate'] * parameters['tres']
+        else:
+            background_counts = 0
+
+        background_corrected_counts = observed_counts - background_counts
+        background_corrected_counts[background_corrected_counts<=0] = 1
+
+        rl_radon_timeseries = gen_initial_guess(background_corrected_counts, one_sided_prf,
                                                 reg=None)
-        rltv_radon_timeseries = gen_initial_guess(observed_counts,
+        rltv_radon_timeseries = gen_initial_guess(background_corrected_counts,
                                                   one_sided_prf)
 
         radon_conc = rltv_radon_timeseries.copy()
@@ -455,10 +463,12 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         f, ax = plt.subplots()
         ax.plot(one_sided_prf)
+        ax.set_title('point-response function, used for RLTV initial guess')
 
         f, ax = plt.subplots()
-        ax.plot(observed_counts)
-        ax.plot(radon_conc)
+        ax.plot(observed_counts, label='observed counts')
+        ax.plot(radon_conc, label='RLTV deconvolution')
+        ax.legend()
         plt.show()
 
         rs = parameters['rs']
