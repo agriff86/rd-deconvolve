@@ -430,7 +430,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         #      when there's a zero in the one-sided prf (apparently)
         one_sided_prf = df['count rate'].values[:idx_90] + 0.000048
         one_sided_prf = one_sided_prf / one_sided_prf.sum()
-        if parameters.has_key(background_count_rate):
+        if parameters.has_key('background_count_rate'):
             background_counts = parameters['background_count_rate'] * parameters['tres']
         else:
             background_counts = 0
@@ -498,8 +498,9 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         print("this should be close to 1:",
                                 modcounts.sum()/observed_counts.sum())
         f, ax = plt.subplots()
-        ax.plot(observed_counts, label='obs')
-        ax.plot(np.r_[np.nan, modcounts], label='model') # padding needed? TODO: check
+        ax.plot(observed_counts, label='Observed counts')
+        ax.plot(np.r_[np.nan, modcounts],
+                label='Modelled counts using RLTV radon timeseries')
         ax.legend()
 
 
@@ -628,8 +629,8 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         if not radon_conc_is_known:
             f, ax = plt.subplots()
-            ax.plot(pmin[nstate+nhyper:]*lamrn, label='deconv')
-            ax.plot(p00[nstate+nhyper:]*lamrn, label='rl-tv')
+            ax.plot(pmin[nstate+nhyper:]*lamrn, label='MAP estimate')
+            ax.plot(p00[nstate+nhyper:]*lamrn, label='RLTV deconvolution')
             ax.legend()
             ax.set_ylabel('Bq/m3')
 
@@ -735,7 +736,10 @@ def overlapping_chunk_dataframe_iterator(df, chunksize, overlap=0):
 
 def chunkwise_apply(df, chunksize, overlap, func, func_args=(), func_kwargs={},
                     nproc=1):
-    chunks = overlapping_chunk_dataframe_iterator(df, chunksize, overlap)
+    chunks = list(overlapping_chunk_dataframe_iterator(df, chunksize, overlap))
+    print('chunkwise_apply...')
+    print('    input data length', len(df))
+    print('    split into', len(chunks), 'of length', len(chunks[0]))
 
     if nproc == 1:
         results = [func(itm, *func_args, **func_kwargs) for itm in chunks]
