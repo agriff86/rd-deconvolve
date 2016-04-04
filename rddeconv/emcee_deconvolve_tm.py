@@ -216,8 +216,20 @@ def lnprior_hyperparameters(p, parameters):
     variable_parameters_sigma_prior = parameters['variable_parameters_sigma_prior']
     ub = parameters['variable_parameter_upper_bounds']
     lb = parameters['variable_parameter_lower_bounds']
+    hp_names = parameters['variable_parameter_names']
+
+    ## debugging check
+    #print(parameters['variable_parameter_names'])
+    #print('mu:')
+    #print(variable_parameters_mu_prior)
+    #print('sigma:')
+    #print(variable_parameters_sigma_prior)
+    #print('sigma/mu:')
+    #print(variable_parameters_sigma_prior/variable_parameters_mu_prior)
+
     (varying_parameters, Y0, variable_parameters,
         radon_concentration_timeseries) = unpack_parameters(p, parameters)
+
     if not np.alltrue(variable_parameters <= ub):
         exidx = variable_parameters > ub
         print(np.array(parameters['variable_parameter_names'])[exidx],
@@ -231,7 +243,18 @@ def lnprior_hyperparameters(p, parameters):
     else:
         # assume that all priors are normally-distributed
         lp = norm.logpdf(variable_parameters, variable_parameters_mu_prior,
-                                            variable_parameters_sigma_prior).sum()
+                                            variable_parameters_sigma_prior)
+        # lamp is log-normally distributed, so take the log and then proceed
+        # as if it's normally-distributed
+        if 'lamp' in hp_names:
+            idx_lamp = hp_names.index('lamp')
+            #print('lamp in hp_names; val, mu, sigma:')
+            #print(variable_parameters[idx_lamp],variable_parameters_mu_prior[idx_lamp],variable_parameters_sigma_prior[idx_lamp])
+            lp[idx_lamp] = norm.logpdf(np.log(variable_parameters[idx_lamp]),
+                np.log(variable_parameters_mu_prior[idx_lamp]),
+                np.log(variable_parameters_sigma_prior[idx_lamp]))
+        lp = lp.sum()
+
     return lp
 
 def lnprior_Y0(Y0, parameters):
@@ -595,7 +618,8 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
             x0 = transform_parameters(p, parameters)
             print('x0:',x0)
             ret = minimize(minus_lnprob, x0=x0, args=(parameters,), method=method,
-                            options=dict(maxiter=100))
+                            options=dict(maxiter=200,
+                                         maxfev=800000))
 
             #print("MAP P0 log-prob:", lnprob(ret.x, parameters))
             pmin = inverse_transform_parameters(ret.x, parameters)
@@ -671,6 +695,9 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
     # check that the lnprob function still works
     print("initial lnprob value:", lnprob(p, parameters))
+
+    print("About to start emcee sampler.  Parameters are:")
+    print(parameters)
 
     from multiprocessing.pool import ThreadPool
     if nthreads > 1:
@@ -767,7 +794,12 @@ def emcee_deconvolve_tm(df, col_name='lld',
                     nproc=1,
                     keep_burn_in_samples=False, thin=1,
                     walkers_per_dim=3, chunksize=None, overlap=None, short_output=True,
-                    stop_on_error=False):
+                    stop_on_error=False,
+                    dict_priors=None
+                    ):
+    """
+    TODO: docstring
+    """
     if chunksize is not None:
         assert overlap is not None
         chunks = overlapping_chunk_dataframe_iterator(df, chunksize, overlap)
@@ -851,18 +883,29 @@ def emcee_deconvolve_tm(df, col_name='lld',
             print('  new value of eff:', parameters['eff'])
 
         # priors
-        variable_parameter_names = 'Q_external', 'Q', 'rs', 'lamp', 't_delay', 'eff'
-        variable_parameters_mu_prior = np.array(
-                                [parameters[k] for k in variable_parameter_names])
-        variable_parameters_sigma_prior = np.array([parameters['Q_external'] * 0.02,
-                                                 parameters['Q']*0.2,
-                                                 0.05,
-                                                 1/100.0,
-                                                 1.,
-                                                 0.05*parameters['eff']])
+        if dict_priors is not None:
+            variable_parameter_names = dict_priors['variable_parameter_names']
+            variable_parameters_mu_prior = dict_priors[
+                'variable_parameters_mu_prior']
+            variable_parameters_sigma_prior = dict_priors[
+                'variable_parameters_sigma_prior']
+            parameters['variable_parameter_lower_bounds'] = dict_priors[
+                'variable_parameter_lower_bounds']
+            parameters['variable_parameter_upper_bounds'] = dict_priors[
+                'variable_parameter_upper_bounds']
+        else:
+            variable_parameter_names = 'Q_external', 'Q', 'rs', 'lamp', 't_delay', 'eff'
+            variable_parameters_mu_prior = np.array(
+                                    [parameters[k] for k in variable_parameter_names])
+            variable_parameters_sigma_prior = np.array([parameters['Q_external'] * 0.02,
+                                                     parameters['Q']*0.2,
+                                                     0.05,
+                                                     2.0,
+                                                     1.,
+                                                     0.05*parameters['eff']])
 
-        parameters['variable_parameter_lower_bounds'] = np.array([0.0, 0.0, 0.0, 0.0, -np.inf, 0.0])
-        parameters['variable_parameter_upper_bounds'] = np.array([np.inf, np.inf, 2.0, np.inf, np.inf, np.inf])
+            parameters['variable_parameter_lower_bounds'] = np.array([0.0, 0.0, 0.0, 0.0, -np.inf, 0.0])
+            parameters['variable_parameter_upper_bounds'] = np.array([np.inf, np.inf, 2.0, np.inf, np.inf, np.inf])
 
         # extract time in seconds
         times = df.index.to_pydatetime()
@@ -880,6 +923,7 @@ def emcee_deconvolve_tm(df, col_name='lld',
                  variable_parameters_mu_prior = variable_parameters_mu_prior,
                  variable_parameters_sigma_prior = variable_parameters_sigma_prior,
                  iterations=iterations,
+                 thin=thin,
                  keep_burn_in_samples=keep_burn_in_samples,
                  nthreads=nthreads)
 
