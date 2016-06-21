@@ -100,6 +100,9 @@ def gen_initial_guess(observed_counts, one_sided_prf, reg='tv'):
     pad0 = np.ones(M)*observed_counts[0]
     pad1 = np.ones(M)*observed_counts[-1]
     observed_counts_padded = np.r_[pad0, observed_counts, pad1]
+    # fill NaN values by interpolation
+    observed_counts_padded = pd.Series(observed_counts_padded).interpolate().values
+    
     initial_guess = util.deconvlucy1d(observed_counts_padded, symmetric_prf,
                                      iterations=1000, reg=reg)
     # exclude padding from return value
@@ -200,7 +203,7 @@ def lnlike(p, parameters):
     #scale counts so that total number of counts is preserved (?)
     # detector_count_rate
     lp = poisson.logpmf(observed_counts[1:], detector_count_rate)
-    lp = lp.sum()
+    lp = np.nansum(lp)
     #f, ax = plt.subplots()
     #ax.plot(observed_counts)
     #ax.plot(detector_count_rate)
@@ -374,7 +377,8 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     TODO: doc
     """
     # observed counts need to be integers
-    assert np.alltrue(np.round(observed_counts)==observed_counts)
+    not_na = np.isfinite(observed_counts)
+    assert np.alltrue(np.round(observed_counts[not_na])==observed_counts[not_na])
     # make a local copy of the paramters dictionary
     parameters_ = parameters
     # default values for parameters
@@ -547,6 +551,11 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     #print(unpack_parameters(p, parameters)[0])
     # we should now be able to compute the liklihood of the initial location p
     print("Initial guess P0 log-prob:",lnprob(p, parameters))
+    if not np.isfinite(lnprob(p,parameters)):
+        print("non-finite P0 for initial guess")
+        print("p-vector:", p)
+        print("parameters:", parameters)
+
     assert np.isfinite(lnprob(p, parameters))
     # the function should return -np.inf for negative values in parameters
     # (with the exception of the delay time)
