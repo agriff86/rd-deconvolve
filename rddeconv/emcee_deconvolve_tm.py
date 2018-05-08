@@ -35,8 +35,14 @@ lama = 0.0037876895112565318
 lamb = 0.00043106167945270227
 lamc = 0.00058052527685087548
 
-def is_string(s):
-    return isinstance(s, basestring)
+# somewhat complicated for python 2/3 compatability (method from SO)
+try:
+    isinstance("", basestring)
+    def is_string(s):
+        return isinstance(s, basestring)
+except NameError:
+    def is_string(s):
+        return isinstance(s, str)
 
 def detector_model_wrapper(timestep, initial_state, external_radon_conc,
                            internal_airt_history,
@@ -142,14 +148,14 @@ def detector_model_specialised(p, parameters):
     parameters['recoil_prob'] = 0.5*(1.0-parameters['rs'])
     N = len(radon_concentration_timeseries)
     if N==0:
-        if parameters.has_key('transform_radon_timeseries'):
+        if 'transform_radon_timeseries' in parameters:
             assert not parameters['transform_radon_timeseries']
         # this means that radon_conc_is_known
         radon_concentration_timeseries = parameters['radon_conc']
         N = len(radon_concentration_timeseries)
     timestep = parameters['tres']
     internal_airt_history = parameters['internal_airt_history']
-    if parameters.has_key('transform_radon_timeseries') and \
+    if 'transform_radon_timeseries' in parameters and \
                                        parameters['transform_radon_timeseries']:
         radon_concentration_timeseries = \
         fast_detector.inverse_transform_radon_concs(radon_concentration_timeseries)
@@ -162,7 +168,7 @@ def detector_model_specialised(p, parameters):
                                             parameters['interpolation_mode'])
     detector_count_rate = cr
 
-    if parameters.has_key('background_count_rate'):
+    if 'background_count_rate' in parameters:
        detector_count_rate += parameters['background_count_rate'] * parameters['tres']
 
     return detector_count_rate
@@ -235,9 +241,9 @@ def lnprior_hyperparameters(p, parameters):
 
     if not np.alltrue(variable_parameters <= ub):
         exidx = variable_parameters > ub
-        print(np.array(parameters['variable_parameter_names'])[exidx],
-              ub[exidx],
-              variable_parameters[exidx])
+        #print(np.array(parameters['variable_parameter_names'])[exidx],
+        #      ub[exidx],
+        #      variable_parameters[exidx])
         #print('parameter upper bound exceeded.')
         lp = -np.inf
     elif not np.alltrue(variable_parameters >= lb):
@@ -280,7 +286,7 @@ def lnprior_difference(radon_concentration_timeseries, parameters):
     """
     log-normal prior on step-by-step changes in radon concentration
     """
-    if parameters.has_key('transform_radon_timeseries') and \
+    if 'transform_radon_timeseries' in parameters and \
                                        parameters['transform_radon_timeseries']:
         radon_concentration_timeseries = \
         fast_detector.inverse_transform_radon_concs(radon_concentration_timeseries)
@@ -291,7 +297,7 @@ def lnprior_difference(radon_concentration_timeseries, parameters):
         # print('rn conc < 0')
     else:
         dpdt = np.diff(np.log(p))
-        if parameters.has_key('ignore_N_steps'):
+        if 'ignore_N_steps' in parameters:
             n = parameters['ignore_N_steps']
             if n > 0 and n < len(dpdt):
                 dpdt = np.sort(dpdt)[n:-n]
@@ -319,7 +325,7 @@ def lnprior_params(p, parameters):
 
     lp += lnprior_Y0(Y0, parameters)
     lp += lnprior_hyperparameters(p, parameters)
-    if parameters.has_key('total_efficiency'):
+    if 'total_efficiency' in parameters:
         # prior on total efficiency
         # 1. put all parameters together in one dictionary
         allparams = dict()
@@ -438,6 +444,10 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     if not radon_conc_is_known:
         # generate initial guess by (1) working out the PSF, (2) RL deconv.
         # determine PSF for these parameters
+        # unless...
+        # we think we're fitting a calibration, in which case just guess
+        # a constant radon concentration
+        
         psf_radon_conc = np.zeros(observed_counts.shape)
         psf_radon_conc[1] = 1.0/lamrn
         params_psf = dict()
@@ -457,7 +467,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         #      when there's a zero in the one-sided prf (apparently)
         one_sided_prf = df['count rate'].values[:idx_90] + 0.000048
         one_sided_prf = one_sided_prf / one_sided_prf.sum()
-        if parameters.has_key('background_count_rate'):
+        if 'background_count_rate' in parameters:
             background_counts = parameters['background_count_rate'] * parameters['tres']
         else:
             background_counts = 0
@@ -483,10 +493,10 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         # if we're simulating a calibration then begin with a guess of
         # constant ambient radon concentration
-        if parameters.has_key('cal_source_strength') and \
+        if 'cal_source_strength' in parameters and \
                                         parameters['cal_source_strength'] > 0:
             # counts per counting interval, gets converted to atoms/m3 later
-            radon_conc = radon_conc*0.0 + observed_counts[0]
+            radon_conc = np.zeros(radon_conc.size) + observed_counts[0]
 
         f, ax = plt.subplots()
         ax.plot(one_sided_prf)
@@ -507,7 +517,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
                                     eff=parameters['eff'])
         total_efficiency = Y0eff[-1]
 
-        if parameters.has_key('total_efficiency'):
+        if 'total_efficiency' in parameters:
             print("prescribed total eff:", parameters['total_efficiency'])
             # detector overall efficiency
             total_efficiency_correction = parameters['total_efficiency']
@@ -519,32 +529,48 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         radon_conc = (radon_conc / parameters['tres'] /
                             total_efficiency_correction / lamrn )
 
-        p = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, radon_conc)
-        modcounts = detector_model_specialised(p, parameters)
+        p_rltv = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, radon_conc)
+        modcounts = detector_model_specialised(p_rltv, parameters)
         print("Model initial guess should preserve total counts.")
-        print("this should be close to 1:",
+        print("--- this should be close to 1:",
                                 modcounts.sum()/observed_counts.sum())
-        f, ax = plt.subplots()
-        ax.plot(observed_counts, label='Observed counts')
-        ax.plot(np.r_[np.nan, modcounts],
-                label='Modelled counts using RLTV radon timeseries')
-        ax.legend()
+        # force initial guess to preserve total counts
+        # -- unless there are NaNs in observed counts, in which case we can't
+        if np.isfinite(observed_counts.sum()):
+            tc_ratio = modcounts.sum()/observed_counts.sum()
+            radon_conc /= tc_ratio
+            p_rltv_adj = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, radon_conc)
+            modcounts = detector_model_specialised(p_rltv_adj, parameters)
+            print("---- after adjustment:",
+                                    modcounts.sum()/observed_counts.sum())        
+            f, ax = plt.subplots()
+            ax.plot(observed_counts, label='Observed counts')
+            ax.plot(np.r_[np.nan, modcounts],
+                    label='Modelled counts using RLTV radon timeseries')
+            ax.legend()
+
 
 
         plt.show()
 
         assert len(radon_conc) == len(observed_counts)
+    
 
     # TEST: use scaled counts as the inial guess
     # radon_conc = (observed_counts / parameters['tres'] /
     #                         parameters['total_efficiency'] / lamrn )
 
     if radon_conc_is_known:
-        p = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, [])
+        p00 = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, [])
+        # I was seeing a weird error, when re-using p, where the old
+        # p (defined above) became immutable.
+        assert(len(p00) == len(Y0_mu_prior) + len(variable_parameters_mu_prior))
     else:
-        p = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, radon_conc)
+        p00 = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, radon_conc)
+        # trap the same error where p doesn't get updated
+        assert(p00[-1] == radon_conc[-1])
 
-    p00 = p.copy()
+    p = p00.copy()
 
     #print(p)
     #print(parameters)
@@ -554,7 +580,9 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     if not np.isfinite(lnprob(p,parameters)):
         print("non-finite P0 for initial guess")
         print("p-vector:", p)
-        print("parameters:", parameters)
+        print("parameters:")
+        for k,v in parameters.iteritems():
+            print("'{}' : {}".format(k, v))
 
     assert np.isfinite(lnprob(p, parameters))
     # the function should return -np.inf for negative values in parameters

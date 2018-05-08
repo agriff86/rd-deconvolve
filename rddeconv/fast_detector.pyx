@@ -11,7 +11,7 @@ references:
 
 from __future__ import division
 import numpy as np
-import exceptions
+
 
 from libc.math cimport exp
 from libc.math cimport log
@@ -250,10 +250,23 @@ def detector_model(double timestep,
         initial_state = new_is
 
     cdef int N_times = len(external_radon_conc)
-    assert(len(internal_airt_history) == N_times)
-    assert(NUM_STATE_VARIABLES == len(initial_state))
-    assert(NUM_PARAMETERS == len(parameters))
-    assert(interpolation_mode == 0 or interpolation_mode == 1)
+    
+    # check inputs
+    if not (len(internal_airt_history) == N_times):
+        raise ValueError('The length of the air temperature array'
+                                    ' is not equal to N_times')
+    if not(NUM_STATE_VARIABLES == len(initial_state)):
+        raise ValueError('The initial state has length {} but'
+                                    ' needs length {}'.format(
+                                    len(initial_state), NUM_STATE_VARIABLES))
+    if not (NUM_PARAMETERS == len(parameters)):
+        raise ValueError('The parameters array has length {} but'
+                                    ' needs length {}'.format(len(parameters), 
+                                                              NUM_PARAMETERS))
+    if not(interpolation_mode == 0 or interpolation_mode == 1):
+        raise ValueError('interpolation_mode has value {} but may'
+                                    ' only equal 0 or 1'.format(
+                                        interpolation_mode))
 
     output_dims = (N_times, NUM_STATE_VARIABLES)
     cdef np.ndarray[np.double_t, ndim=2,
@@ -271,7 +284,7 @@ def detector_model(double timestep,
                                    &state_history[0,0],
                                    &parameters[0])
     if err:
-        raise(exceptions.RuntimeError)
+        raise(RuntimeError)
 
     return state_history
 
