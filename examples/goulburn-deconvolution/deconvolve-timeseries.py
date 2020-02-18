@@ -5,16 +5,26 @@
 Deconvolve radon observations from a Goulburn field campaign (700L detector)
 """
 
-from __future__ import (absolute_import, division,
-                        print_function)
+import sys
+import os
+EXAMPLE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use('PDF') # prevent graphics from being displayed
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import datetime
 
-import rddeconv
+try:
+    import rddeconv
+except ImportError:
+    # assume we're running from within source tree but don't want to install
+    sys.path.append(PROJECT_DIR)
+    import rddeconv
+
 
 from rddeconv.emcee_deconvolve_tm import emcee_deconvolve_tm, lamrn
 
@@ -29,8 +39,8 @@ def load_glb(fname_glb, missing_value=500):
                                            itm[1]['time']) for itm in df_glb.iterrows()]
     df_glb.index = time
     #clean up negative values
-    df_glb.lld[df_glb.lld<0] = missing_value
-    return df_glb
+    df_glb.loc[df_glb.lld<0, 'lld'] = missing_value
+    return df_glb.copy()
 
 
 def test_df_deconvolve_goulburn(nproc, one_night_only=False):
@@ -45,7 +55,7 @@ def test_df_deconvolve_goulburn(nproc, one_night_only=False):
     #
     # ... load/munge data
     #
-    df = load_glb(fname_glb='raw-data/Goulburn_Nov_2011_Internal_DB_v01_raw.csv')
+    df = load_glb(fname_glb=os.path.join(EXAMPLE_DIR,'raw-data/Goulburn_Nov_2011_Internal_DB_v01_raw.csv'))
     # drop problematic first value (lld=1)
     df.lld.iloc[0] = np.NaN
     df = df.dropna(subset=['lld'])
@@ -59,10 +69,10 @@ def test_df_deconvolve_goulburn(nproc, one_night_only=False):
 
 
     # drop the calibration period
-    df = df.ix[datetime.datetime(2011, 11, 2, 18):]
+    df = df.loc[datetime.datetime(2011, 11, 2, 18):]
 
     # drop the bad data at the end of the record
-    df = df.ix[:datetime.datetime(2011, 11, 10, 12)]
+    df = df.loc[:datetime.datetime(2011, 11, 10, 12)]
 
     #
     # ... set instrument parameters
@@ -96,12 +106,10 @@ def test_df_deconvolve_goulburn(nproc, one_night_only=False):
     # note: using default priors, defined in emcee_deconvolve_tm
 
     if one_night_only:
-        df = df.head(48)
-        chunksize = None
-        overlap = None
-    else:
-        chunksize = 43
-        overlap = 12
+        df = df.head(48 * nproc)
+    
+    chunksize = 43
+    overlap = 12
 
     dfobs = df.copy()
 
@@ -115,14 +123,23 @@ def test_df_deconvolve_goulburn(nproc, one_night_only=False):
                              overlap=overlap,
                              model_parameters=parameters,
                              nproc=nproc,
-                             nthreads=4)
+                             nthreads=1,
+                             stop_on_error=True)
 
     df = df.join(dfobs)
 
     return df
 
 if __name__ == "__main__":
-    df = test_df_deconvolve_goulburn(nproc=1, one_night_only=True)
+
+    #
+    # ... check on emcee version
+    #
+    import emcee
+    print("EMCEE sampler, version: {}".format(emcee.__version__))
+
+    os.chdir(EXAMPLE_DIR)
+    df = test_df_deconvolve_goulburn(nproc=10, one_night_only=True)
     df.to_csv('tm_deconvolution_glb.csv')
 
     # save a picture comparing raw (lld_scaled) with deconvolved (lld_mean) obs

@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+#
+# note -- for use in-place use
+# python setup.py build_ext --inplace
 from __future__ import print_function
 
 

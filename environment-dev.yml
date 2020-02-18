@@ -1,24 +1,28 @@
 # Runtime requirements
 --requirement requirements.txt
 
-# Testing
-pytest==2.5.1
-py==1.4.19
-mock==1.0.1
+# Environment for developing deconvolution scripts
+# TODO: remove unnecessary deps.
 
-# Linting
-flake8==2.1.0
-mccabe==0.2.1
-pep8==1.4.6
-pyflakes==0.7.3
+name: deconv
 
-# Documentation
-Sphinx==1.2
-docutils==0.11
-Jinja2==2.7.1
-MarkupSafe==0.18
-Pygments==1.6
+channels:
+ - defaults
+ - conda-forge
 
-# Miscellaneous
-Paver==1.2.1
-colorama==0.2.7
+dependencies:
+ - python=3.7
+ - numpy
+ - cython
+ - joblib
+ - pandas
+ - openpyxl
+ - pip
+ - xlrd
+ - matplotlib
+ - scipy
+ - emcee
+ - jupyter
+ - black
+ - pylint
+ - numba

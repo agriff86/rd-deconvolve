@@ -463,7 +463,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
                                     interpolation_mode=parameters['interpolation_mode'])
         #work out when we've seen 99% of the total counts
         nac = df.Acc_counts/df.Acc_counts.iloc[-1]
-        idx_90 = (nac > 0.999).nonzero()[0][0]
+        idx_90 = int(nac[(nac > 0.999)].index[0])
         if idx_90 % 2 == 0:
             idx_90 += 1 # must be odd
         #TODO: adding that small constant is a hack because RL deconv doesn't work
@@ -753,7 +753,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
                                         a=2.0)  #default value of a is 2.0
         # burn-in
         pos,prob,state = sampler.run_mcmc(p0, iterations,
-                                        storechain=keep_burn_in_samples, thin=thin)
+                                        store=keep_burn_in_samples, thin=thin)
 
         # sample
         pos,prob,state = sampler.run_mcmc(pos, iterations, thin=thin)
@@ -2085,7 +2085,7 @@ if __name__ == "__main__":
 
     #fit_ret = test_deconvolve_iterations()
 
-    #df = test_df_deconvolve_goulburn(nproc=1, one_night_only=True)
+    df = test_df_deconvolve_goulburn(nproc=1, one_night_only=True)
 
     #df = test_df_deconvolve(nproc=2)  # run this on the cluster with nproc=8
     #df.to_csv('data-processed/tm_deconvolution_lab_test_10min.csv')
@@ -2100,9 +2100,9 @@ if __name__ == "__main__":
     #df.to_csv('data-processed/tm_deconvolution_cabauw20m_10min.csv')
     #df.to_pickle('data-processed/tm_deconvolution_cabauw20m_10min.pkl')
 
-    df = test_df_deconvolve_richmond(nproc=16)  # run this on the cluster with nproc=16 (nthread=4)
-    df.to_csv('data-processed/tm_deconvolution_richmond_6min.csv')
-    df.to_pickle('data-processed/tm_deconvolution_richmond_6min.pkl')
+    #df = test_df_deconvolve_richmond(nproc=16)  # run this on the cluster with nproc=16 (nthread=4)
+    #df.to_csv('data-processed/tm_deconvolution_richmond_6min.csv')
+    #df.to_pickle('data-processed/tm_deconvolution_richmond_6min.pkl')
 
     if False:
         dfss, fit_ret = test_fit_to_obs()

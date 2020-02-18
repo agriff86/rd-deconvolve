@@ -13,6 +13,7 @@ dependencies:
  - cython
  - pandas
  - openpyxl
+ - joblib
  - pip
  - xlrd
  - matplotlib

@@ -9,4 +9,4 @@ if [[ ! -d ./env ]]
 then
     conda create --prefix ./env
 fi
-conda env update --prefix ./env --file environment.yml  --prune
+conda env update --prefix ./env --file environment-dev.yml  --prune
