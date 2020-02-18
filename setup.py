@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath('.'))
 
 ## Constants
 CODE_DIRECTORY = 'rddeconv'
-BOOST_INCLUDE_DIRS = ['/home/agf/sw/boost_1_57_0/']
+BOOST_INCLUDE_DIRS = []
 
 setup(
     name = "rddeconv",

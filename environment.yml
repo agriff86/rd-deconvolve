@@ -1,0 +1,21 @@
+# Environment for running deconvolution scripts
+# TODO: remove unnecessary deps.
+
+name: deconv
+
+channels:
+ - defaults
+ - conda-forge
+
+dependencies:
+ - python=3.7
+ - numpy
+ - cython
+ - pandas
+ - openpyxl
+ - pip
+ - xlrd
+ - matplotlib
+ - scipy
+ - emcee
+ - numba

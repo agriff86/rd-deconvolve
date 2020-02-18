@@ -23,6 +23,7 @@ sdist
 deb_dist
 develop-eggs
 .installed.cfg
+/env/
 
 ## Installer logs
 pip-log.txt
@@ -42,6 +43,7 @@ pip-log.txt
 *.swp
 \#*\#
 *~
+.vscode
 
 .ipynb_checkpoints/
 

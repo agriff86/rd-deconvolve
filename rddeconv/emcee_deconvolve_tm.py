@@ -22,7 +22,7 @@ mpl.use('pdf')  # for running command-line only
 import matplotlib.pyplot as plt
 
 
-from scipy.stats import poisson, norm, lognorm
+from scipy.stats import poisson, norm, lognorm, cauchy
 
 import emcee
 
@@ -310,6 +310,9 @@ def lnprior_difference(radon_concentration_timeseries, parameters):
         #sigma = np.log(1.5)
         #sigma = np.log(1.05) # much more smoothing
         lp = norm.logpdf(dpdt, mu, sigma).sum()
+        ## experiment with Cauchy distribution
+        # lp = cauchy.logpdf(dpdt, mu, sigma).sum()
+
     return lp
 
 def lnprior_params(p, parameters):
@@ -581,7 +584,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         print("non-finite P0 for initial guess")
         print("p-vector:", p)
         print("parameters:")
-        for k,v in parameters.iteritems():
+        for k,v in parameters.items():
             print("'{}' : {}".format(k, v))
 
     assert np.isfinite(lnprob(p, parameters))
