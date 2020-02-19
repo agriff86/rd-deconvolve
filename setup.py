@@ -16,7 +16,15 @@ sys.path.insert(0, os.path.abspath('.'))
 
 ## Constants
 CODE_DIRECTORY = 'rddeconv'
+
+## Handle boost libraries installed in anaconda environment
 BOOST_INCLUDE_DIRS = []
+try:
+    CONDA_PREFIX = os.environ['CONDA_PREFIX']
+    BOOST_INCLUDE_DIRS.append( os.path.join(CONDA_PREFIX, 'include'))
+except KeyError:
+    pass
+
 
 setup(
     name = "rddeconv",
