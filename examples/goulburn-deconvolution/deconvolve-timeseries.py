@@ -139,7 +139,7 @@ if __name__ == "__main__":
     print("EMCEE sampler, version: {}".format(emcee.__version__))
 
     os.chdir(EXAMPLE_DIR)
-    df = test_df_deconvolve_goulburn(nproc=10, one_night_only=True)
+    df = test_df_deconvolve_goulburn(nproc=20, one_night_only=True)
     df.to_csv('tm_deconvolution_glb.csv')
 
     # save a picture comparing raw (lld_scaled) with deconvolved (lld_mean) obs
