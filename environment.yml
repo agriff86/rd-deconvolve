@@ -21,3 +21,5 @@ dependencies:
  - emcee
  - numba
  - boost-cpp
+ - logzero
+ - pymc3

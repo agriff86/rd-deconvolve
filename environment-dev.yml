@@ -27,3 +27,9 @@ dependencies:
  - black
  - pylint
  - numba
+ - rope
+ - pylint
+ - logzero
+ - pymc3
+ - flake8
+ - dask

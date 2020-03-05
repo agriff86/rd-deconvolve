@@ -17,26 +17,46 @@ import glob
 
 
 # a standard set of detector parameters
-standard_parameters = dict(
-            Q = 0.0122, 
-            rs = 0.95, 
-            lamp = 1/180.0,
-            eff = 0.17815,
-            Q_external = 40.0 / 60.0 / 1000.0,
-            V_delay = 200.0 / 1000.0,
-            V_tank = 700.0 / 1000.0,
-            t_delay = 60.0,
-            interpolation_mode = 1,
-            expected_change_std = 1.1,
-            total_efficiency = 0.154, #scott's cal
-            total_efficiency_frac_error = 0.025,
-            transform_radon_timeseries = True,
-            cal_source_strength = 0.0,
-            cal_begin = 0.0,
-            cal_duration = 0.0)
-standard_parameters['recoil_prob'] = 0.5*(1-standard_parameters['rs'])
+standard_parameters_700L = {
+    'Q' : 0.0122, 
+    'rs' : 0.95, 
+    'lamp' : 1/180.0,
+    'eff' : 0.17815,
+    'Q_external' : 40.0 / 60.0 / 1000.0,
+    'V_delay' : 200.0 / 1000.0,
+    'V_tank' : 700.0 / 1000.0,
+    't_delay' : 0.0,
+    'interpolation_mode' : 1,
+    'expected_change_std' : 1.1,
+    'total_efficiency' : 0.154, #scott's cal
+    'total_efficiency_frac_error' : 0.025,
+    'transform_radon_timeseries' : True,
+    'cal_source_strength' : 0.0,
+    'cal_begin' : 0.0,
+    'cal_duration' : 0.0}
+standard_parameters_700L['recoil_prob'] = 0.5*(1-standard_parameters_700L['rs'])
 
+# a standard set of detector parameters
+standard_parameters_1500L = {
+    'Q' : 0.0122, 
+    'rs' : 0.95, 
+    'lamp' : 1/180.0,
+    'eff' : 0.17815,
+    'Q_external' : 80.0 / 60.0 / 1000.0,
+    'V_delay' : 200.0 / 1000.0,
+    'V_tank' : 1500.0 / 1000.0,
+    't_delay' : 0.0,
+    'interpolation_mode' : 1,
+    'expected_change_std' : 1.1,
+    'total_efficiency' : 0.154, #scott's cal
+    'total_efficiency_frac_error' : 0.025,
+    'transform_radon_timeseries' : True,
+    'cal_source_strength' : 0.0,
+    'cal_begin' : 0.0,
+    'cal_duration' : 0.0}
+standard_parameters_1500L['recoil_prob'] = 0.5*(1-standard_parameters_1500L['rs'])
 
+standard_parameters = standard_parameters_700L
 
 def deconvlucy1d(g, psf, iterations=-1, reg='none', lambda_reg=0.002, tol=0.02):
     """
@@ -45,7 +65,7 @@ def deconvlucy1d(g, psf, iterations=-1, reg='none', lambda_reg=0.002, tol=0.02):
     Parameters
     ----------
     g : one-dimensionsal array
-        The time-series to be decovoluved
+        The time-series to be deconvolved
 
     psf : one-dimensional array
         The point-spread function
@@ -115,6 +135,40 @@ def deconvlucy1d(g, psf, iterations=-1, reg='none', lambda_reg=0.002, tol=0.02):
 
 def parse_hhmm_string(s):
     return datetime.datetime.strptime(s, '%H:%M').time()
+
+def load_standard_csv(fname: str) -> pd.DataFrame:
+    """Load radon detector data from standard CSV file format
+    
+    Arguments:
+        fname {str} -- name of CSV file.  This name is expanded
+            with 'glob' so that multiple files can be read at once
+
+    Returns:
+        {pandas.Dataframe} -- radon data
+    """
+    fnames = glob.glob(fname)
+    if len(fnames) < 1:
+        raise FileNotFoundError(f'{fname} not found')
+
+    dfl = []
+    for fn in fnames:
+        df = pd.read_csv(fname)
+        df.columns = [itm.strip().lower() for itm in df.columns]
+        df['time'] = df.time.apply(parse_hhmm_string)
+        df.columns = [itm.strip().lower() for itm in df.columns]
+        time = [ datetime.datetime.combine(datetime.date(int(itm[1]['year']),
+                                                     int(itm[1]['month']),
+                                                     int(itm[1]['dom'])),
+                                       itm[1]['time']) for itm in df.iterrows()]
+        df.index = time
+        dfl.append(df)
+    
+    df = pd.concat(dfl, sort=True)
+    df = df.drop_duplicates()
+    # missing values are sometimes flagged with negative numbers - clean these up
+    df.loc[df.lld<0, 'lld'] = np.NaN
+    df.loc[df.uld<0, 'uld'] = np.NaN
+    return df
 
 def load_radon(fname, sheet_name=None, subhrs=0):
     """load radon data from Sylvester's excel spreadsheet
