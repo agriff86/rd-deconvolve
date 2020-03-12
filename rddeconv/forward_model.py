@@ -20,6 +20,7 @@ import theano
 
 lamr = 2.100140526711101e-06
 
+
 def calc_eff_and_recoil_prob(
     Q, rs, lamp, Q_external, V_delay, V_tank, total_efficiency, **kwargs
 ):
@@ -51,6 +52,10 @@ def convolve_radon_timeseries_numpy(t, radon, radon_0, detector_params):
     # (avoids round-off error related problems, and may reduce computation)
     threshold_sec = 60000
     threshold_idx = np.argmax(t > threshold_sec)
+    if threshold_idx > len(radon) - 2:
+        do_threshold = False
+    else:
+        do_threshold = True
 
     all_keys = [
         "Q",
@@ -92,6 +97,12 @@ def convolve_radon_timeseries_numpy(t, radon, radon_0, detector_params):
     ]
 
     params = {k: detector_params[k] for k in all_keys}
+
+    # optional params
+    cal_injection_upstream_of_delay = detector_params.get(
+        "cal_injection_upstream_of_delay", False
+    )
+
     # derive eff and recoil prob from other parameters
     params["eff"], params["recoil_prob"] = calc_eff_and_recoil_prob(**params)
     #
@@ -108,9 +119,34 @@ def convolve_radon_timeseries_numpy(t, radon, radon_0, detector_params):
     tc1 = gf.tc_integral_filter_activity(
         t=t, N_d0=N_d0, N_r0=N_r0, a0=a0, b0=b0, c0=c0, N_af=N_af, N_bf=N_bf, **params
     )
-    tc1[threshold_idx:] = tc1[threshold_idx]
+    if params["V_delay"] > 0:
+        tc1 = gf.tc_integral_filter_activity(
+            t=t,
+            N_d0=N_d0,
+            N_r0=N_r0,
+            a0=a0,
+            b0=b0,
+            c0=c0,
+            N_af=N_af,
+            N_bf=N_bf,
+            **params
+        )
+    else:
+        tc1 = gf.tc_integral_filter_activity_nodelay(
+            t=t,
+            N_r0=N_r0,
+            a0=a0,
+            b0=b0,
+            c0=c0,
+            N_af=N_af,
+            N_bf=N_bf,
+            **params
+        )
+    if do_threshold:
+        tc1[threshold_idx:] = tc1[threshold_idx]
     rate1 = tc1.copy()
-    rate1[1:] = np.diff(tc1)
+    if do_threshold:
+        rate1[1:] = np.diff(tc1)
     #
     # ... response to radon signal
     #
@@ -118,8 +154,29 @@ def convolve_radon_timeseries_numpy(t, radon, radon_0, detector_params):
     R = gf.tc_integral_square_wave(
         t=t, t0=0, delta_t=delta_t, N_af=N_af, N_bf=N_bf, N_e=1.0, **params
     )
+    if params["V_delay"] > 0:
+        R = gf.tc_integral_square_wave(
+            t=t,
+            t0=0,
+            delta_t=delta_t,
+            N_af=N_af,
+            N_bf=N_bf,
+            N_e=1.0,
+            **params
+        )
+    else:
+        R = gf.tc_integral_square_wave_nodelay(
+            t=t,
+            t0=0,
+            delta_t=delta_t,
+            N_af=N_af,
+            N_bf=N_bf,
+            N_e=1.0,
+            **params
+        )
     # R = gf.tc_integral_delta(t=t, t0=0, delta_t=delta_t, N_af=N_af, N_bf=N_bf, Ncal=1.0, **params)
-    R[threshold_idx:] = R[threshold_idx]
+    if do_threshold:
+        R[threshold_idx:] = R[threshold_idx]
     tc2 = np.zeros(tc1.shape)
     N = len(radon)
     # write the convolution as a loop, for copying into stan
@@ -138,8 +195,11 @@ def convolve_radon_timeseries_numpy(t, radon, radon_0, detector_params):
     # ... response to calibration
     #
     # TODO: calc Ncal from source strength
-    Ncal = params['cal_source_strength'] / params['Q_external'] * lamr
-    tc3 = gf.tc_integral_calibration(t=t, N_af=N_af, N_bf=N_bf, Ncal=Ncal, **params)
+    Ncal = params["cal_source_strength"] / params["Q_external"] * lamr
+    if cal_injection_upstream_of_delay:
+        tc3 = gf.tc_integral_calibration_w_delay(t=t, N_af=N_af, N_bf=N_bf, Ncal=Ncal, **params)
+    else:
+        tc3 = gf.tc_integral_calibration(t=t, N_af=N_af, N_bf=N_bf, Ncal=Ncal, **params)
     rate3 = tc3.copy()
     rate3[1:] = np.diff(tc3)
 
@@ -186,7 +246,7 @@ def theano_diff(x):
 
 #%%
 def convolve_radon_timeseries(
-    t, radon, radon_0, Npts, delta_t, detector_params, simulate_calibration=False
+    t, radon, radon_0, Npts, delta_t, detector_params, simulate_calibration=False, cal_injection_upstream_of_delay=False
 ):
     # we want to zero out response after a threshold time
     # (avoids round-off error related problems, and may reduce computation)
@@ -215,12 +275,7 @@ def convolve_radon_timeseries(
         #     'transform_radon_timeseries',
         #     'recoil_prob'
     ]
-    cal_keys = [
-        "cal_source_strength",
-        "cal_begin",
-        "cal_duration"
-
-    ]
+    cal_keys = ["cal_source_strength", "cal_begin", "cal_duration"]
 
     params = {k: detector_params[k] for k in required_keys}
     if simulate_calibration:
@@ -242,17 +297,29 @@ def convolve_radon_timeseries(
     c0 *= radon_0
     N_d0 = radon_0
     N_r0 = N_d0
-    tc1_short = gf.tc_integral_filter_activity(
-        t=t[:threshold_idx],
-        N_d0=N_d0,
-        N_r0=N_r0,
-        a0=a0,
-        b0=b0,
-        c0=c0,
-        N_af=N_af,
-        N_bf=N_bf,
-        **params
-    )
+    if params["V_delay"] > 0:
+        tc1_short = gf.tc_integral_filter_activity(
+            t=t[:threshold_idx],
+            N_d0=N_d0,
+            N_r0=N_r0,
+            a0=a0,
+            b0=b0,
+            c0=c0,
+            N_af=N_af,
+            N_bf=N_bf,
+            **params
+        )
+    else:
+        tc1_short = gf.tc_integral_filter_activity_nodelay(
+            t=t[:threshold_idx],
+            N_r0=N_r0,
+            a0=a0,
+            b0=b0,
+            c0=c0,
+            N_af=N_af,
+            N_bf=N_bf,
+            **params
+        )
     rate1_short = theano_diff(tc1_short)
     rate1 = tt.zeros(shape=(Npts,))
     rate1 = tt.set_subtensor(rate1[:threshold_idx], rate1_short)
@@ -260,15 +327,26 @@ def convolve_radon_timeseries(
     #
     # ... response to radon signal
     #
-    R_short = gf.tc_integral_square_wave(
-        t=t[:threshold_idx],
-        t0=0,
-        delta_t=delta_t,
-        N_af=N_af,
-        N_bf=N_bf,
-        N_e=1.0,
-        **params
-    )
+    if params["V_delay"] > 0:
+        R_short = gf.tc_integral_square_wave(
+            t=t[:threshold_idx],
+            t0=0,
+            delta_t=delta_t,
+            N_af=N_af,
+            N_bf=N_bf,
+            N_e=1.0,
+            **params
+        )
+    else:
+        R_short = gf.tc_integral_square_wave_nodelay(
+            t=t[:threshold_idx],
+            t0=0,
+            delta_t=delta_t,
+            N_af=N_af,
+            N_bf=N_bf,
+            N_e=1.0,
+            **params
+        )
     R_short_rate = theano_diff(R_short)
     # R = gf.tc_integral_delta(t=t, t0=0, delta_t=delta_t, N_af=N_af, N_bf=N_bf, Ncal=1.0, **params)
     R = tt.zeros(shape=(Npts,))
@@ -286,14 +364,14 @@ def convolve_radon_timeseries(
     #
     if simulate_calibration:
         # restrict computation to a short period around calibration
-        Ncal = params['cal_source_strength'] / params['Q_external'] * lamr
-
-        tc3 = gf.tc_integral_calibration(
-            t=t, N_af=N_af, N_bf=N_bf, Ncal=Ncal, **params
-        )
+        Ncal = params["cal_source_strength"] / params["Q_external"] * lamr
+        if cal_injection_upstream_of_delay:
+            tc3 = gf.tc_integral_calibration_w_delay(t=t, N_af=N_af, N_bf=N_bf, Ncal=Ncal, **params)
+        else:
+            tc3 = gf.tc_integral_calibration(t=t, N_af=N_af, N_bf=N_bf, Ncal=Ncal, **params)
         rate3 = theano_diff(tc3)
-        # sometimes the calculations fail long lag times - 
-        # at these times the rate should be close to zero, so 
+        # sometimes the calculations fail long lag times -
+        # at these times the rate should be close to zero, so
         # here we just set it to zero
         # rate3 = tt.set_subtensor(rate3[tt.isnan(rate3).nonzero()], 0.0)
         # --- No, trying a more numerically stable version of the generated

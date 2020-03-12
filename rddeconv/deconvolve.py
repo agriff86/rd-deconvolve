@@ -4,6 +4,9 @@ Main deconvolution routine
 import logzero
 import pandas as pd
 import pymc3 as pm
+import os
+import numpy as np
+import xarray as xr
 
 from . import pymc3_deconvolve
 
@@ -48,6 +51,23 @@ def get_overlapping_chunks(df: pd.DataFrame, chunksize: int, overlap: int = 0):
     return dfl
 
 
+class FigureManager(object):
+    def __init__(self, figdir, chunk_id):
+        self._figdir = figdir
+        self.chunk_id = chunk_id
+        if not os.path.exists(figdir):
+            raise FileNotFoundError(f'Directory "{figdir}" does not exist."')
+
+    def save_figure(self, fig, title):
+        fmt = "png"
+        try:
+            fname = os.path.join(self._figdir, f"{self.chunk_id:03}_{title}.{fmt}")
+        except ValueError:
+            # chunk_id may be non-numeric
+            fname = os.path.join(self._figdir, f"{self.chunk_id}_{title}.{fmt}")
+        fig.savefig(fname, dpi=300, transparent=False, bbox_inches="tight")
+
+
 def add_chunk_metadata(ds, chunk_id, Noverlap):
     overlap_data = np.zeros(len(ds.time), dtype=np.int8)
     overlap_data[:Noverlap] = 1
@@ -67,16 +87,22 @@ def deconvolve_dataframe_in_chunks(
     Noverlap=0,
     dask_client=None,
     fname_base="./deconvolution_result",
+    figdir=None,
     njobs=None,
-    joblib_tasks=1
+    joblib_tasks=1,
 ):
 
     dfl = get_overlapping_chunks(df, chunksize, Noverlap)
-    logger.info(f'Dataset divided into {len(dfl)} chunks')
+    logger.info(f"Dataset divided into {len(dfl)} chunks")
+
+    if figdir is not None:
+        logger.info(f"Saving diagnostic figures to {figdir}")
+    else:
+        figure_manager = None
 
     joblib = joblib_tasks > 1
     if joblib:
-        logger.info(f'Running in parallel using joblib with {joblib_tasks} tasks')
+        logger.info(f"Running in parallel using joblib with {joblib_tasks} tasks")
     if joblib and dask_client is not None:
         raise ValueError("Can't have joblib True when dask_client is not None")
 
@@ -86,49 +112,66 @@ def deconvolve_dataframe_in_chunks(
             njobs = 4
         else:
             njobs = 1
-        
+
     if joblib:
         # joblib is used by pymc3, needs to be suppressed if we're using joblib here
         njobs = 1
-    
-    logger.info(f'MCMC sampling will be carried out with {njobs} jobs')
-    constant_kwargs = {"detector_params": detector_params, "mcmc_backend": mcmc_backend, "njobs":njobs}
 
+    logger.info(f"MCMC sampling will be carried out with {njobs} jobs")
+    constant_kwargs = {
+        "detector_params": detector_params,
+        "mcmc_backend": mcmc_backend,
+        "njobs": njobs,
+    }
 
     fnames = []
+
     def run_task(dfss, chunk_id):
-        ds_trace = deconvolve_dataframe(dfss, **constant_kwargs)
+        logger.info(f"Processing chunk {chunk_id}")
+        figure_manager = FigureManager(figdir, chunk_id)
+        ds_trace = deconvolve_dataframe(
+            dfss, figure_manager=figure_manager, **constant_kwargs
+        )
         ds_output = add_chunk_metadata(ds_trace, chunk_id, Noverlap)
         fname = f"{fname_base}_chunk{chunk_id:04}.nc"
-        logger.info(f'Writing MCMC samples to {fname}')
+        logger.info(f"Writing MCMC samples to {fname}")
         ds_output.to_netcdf(fname)
         return fname
-       
+
     fnames = []
     for chunk_id, dfss in enumerate(dfl):
         if joblib:
             from joblib import delayed
+
             fname = delayed(run_task)(dfss, chunk_id)
         elif dask_client is None:
             fname = run_task(dfss, chunk_id)
         elif dask_client is not None:
             fname = dask_client.submit(run_task, dfss, chunk_id)
         else:
-            assert(False)
+            assert False
 
         fnames.append(fname)
-    
+
     if joblib:
         from joblib import Parallel
+
         fnames = Parallel(n_jobs=joblib_tasks)(fnames)
 
     if dask_client is not None:
         fnames = dask_client.gather(fnames)
-    
+
     return fnames
 
 
-def deconvolve_dataframe(df, detector_params, mcmc_backend="pymc3", Nsamples=1000, njobs=None):
+def deconvolve_dataframe(
+    df,
+    detector_params,
+    mcmc_backend="pymc3",
+    Nsamples=1000,
+    njobs=None,
+    figure_manager=None,
+):
 
     logger.info(f"Processing data from {df.index[0]} to {df.index[-1]}")
     if mcmc_backend == "pymc3":
@@ -149,21 +192,24 @@ def deconvolve_dataframe(df, detector_params, mcmc_backend="pymc3", Nsamples=100
                 logger.info(f"Using {vn} = {dp[vn]} from timeseries input")
 
         deconv_result = pymc3_deconvolve.fit_model_to_obs(
-            time, counts, detector_params=dp, Nsamples=Nsamples, njobs=njobs
+            time,
+            counts,
+            detector_params=dp,
+            Nsamples=Nsamples,
+            njobs=njobs,
+            figure_manager=figure_manager,
         )
-        raw_trace = deconv_result['trace']
-        map_estimate = deconv_results['map_estimate']
-        num_divergences = raw_trace.get_sampler_stats('diverging').sum()
+        raw_trace = deconv_result["trace"]
+        map_estimate = deconv_result["map_estimate"]
+        num_divergences = raw_trace.get_sampler_stats("diverging").sum()
         if num_divergences > 0:
-            logger.error(f'There are {num_divergences} divergences in the samples')
+            logger.error(f"There are {num_divergences} divergences in the samples")
 
-        trace = pymc3_deconvolve.trace_as_xarray(
-            index_time=df.index, trace=raw_trace, Noverlap=Noverlap
-        )
+        trace = pymc3_deconvolve.trace_as_xarray(index_time=df.index, trace=raw_trace)
         # TODO: add map_estimate to trace?
         # TODO: add summary to trace?
 
     else:
         raise NotImplementedError(f"no backend for `mcmc_backend={mcmc_backend}`")
-    
+
     return trace

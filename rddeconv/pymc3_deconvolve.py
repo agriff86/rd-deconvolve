@@ -66,6 +66,7 @@ def fit_model_to_obs(
     Nsamples: int = 1000,
     Nchains: int = 4,
     njobs: int = 4,
+    figure_manager=None,
 ):
     with timing("Constructing model"):
         model = construct_model(
@@ -89,10 +90,16 @@ def fit_model_to_obs(
                     else:
                         logger.debug(f"{k}: {map_estimate[k]}")
                 if k == "radon":
-                    radon_str = " ".join([f"{itm:.3}" for itm in map_estimate[k]])
+                    radon_str = " ".join(
+                        [f"{float(itm):.3}" for itm in map_estimate[k]]
+                    )
                     if len(radon_str) > 80:
                         radon_str = radon_str[:80] + "..."
                     logger.debug(f"{k}: {radon_str}")
+            # This isn't doing what I want it to - disable for now
+            # logger.debug(
+            #    f"MAP estimate logp:\n{model.check_test_point(test_point=map_estimate)}"
+            # )
             if True:
                 # TODO: produce this plot and save to a file
                 # perhaps via a 'figure manager' class which
@@ -103,21 +110,24 @@ def fit_model_to_obs(
                 delta_t = time[1] - time[0]
 
                 ax.plot(
-                    time,
+                    time / 3600.0,
                     counts / delta_t / detector_params["total_efficiency"],
                     label="scaled counts",
                 )
                 ax.plot(
-                    time,
+                    time / 3600.0,
                     map_estimate["E_simulated_counts"]
                     / delta_t
                     / detector_params["total_efficiency"],
                     label="scaled counts (simulated)",
                 )
-                ax.plot(time, map_estimate["radon"], label="reconstructed radon")
+                ax.plot(time / 3600, map_estimate["radon"], label="reconstructed radon")
                 ax.legend()
 
-                plt.show()
+                if figure_manager is not None:
+                    figure_manager.save_figure(fig, "map")
+
+                # plt.show()
 
         with timing(f"MCMC sampling {Nchains} chains of {Nsamples} points each"):
             with model:
@@ -126,12 +136,15 @@ def fit_model_to_obs(
                 progressbar = njobs > 1
                 # default target_accept is 0.8.  Increase (if needed) to make
                 # sampling more robust
+                # default number of tuning steps is tune=500
+                ntune = min(500, Nsamples)
                 trace = pm.sample(
                     Nsamples,
                     chains=Nchains,
                     progressbar=progressbar,
                     cores=njobs,
                     # target_accept=0.9,
+                    tune=ntune,
                 )
 
     except pm.parallel_sampling.ParallelSamplingError as pm_exception:
@@ -294,15 +307,23 @@ def construct_model(
         )
 
     if radon_conc_known:
-        logger.info("True radon concentration is known - fitting other parameters")
+        logger.info(
+            "Ambient radon concentration is known - configuring model to fit other parameters"
+        )
     else:
-        logger.info("Running deconvolution")
+        logger.info("Configuring model to perform deconvolution")
         logger.info(
             f"Smoothing radon concentration timeseries: {smooth_radon_timeseries}"
         )
 
+    cal_injection_upstream_of_delay = detector_params.get(
+        "cal_injection_upstream_of_delay", False
+    )
     if simulate_calibration:
-        logger.info("Simulating calibration in model")
+        inj_loc = ["downstream", "upstream"][int(cal_injection_upstream_of_delay)]
+        logger.info(
+            f"Simulating calibration in model with injection {inj_loc} of external delay volume"
+        )
 
     if not np.allclose(np.diff(time), delta_t):
         raise ValueError("time must have uniform spacing")
@@ -311,6 +332,7 @@ def construct_model(
         background_count_rate = sp["background_rate"]
     except KeyError:
         logger.warning("Background count rate not specified, assuming zero")
+        logger.warning("(Set 'background_rate' in cps to include background counts.)")
         background_count_rate = 0.0
 
     logger.info(
@@ -322,15 +344,17 @@ def construct_model(
     # but the sigma gets provided in terms of sigma/mu
     # for example, a 10% error (1-sigma range between mu/1.1 to mu*1.1)
     # implies a shape parameter of log(1.1)
-    # TODO: check against paper (need to be doubled?)
+
     total_efficiency = sp["total_efficiency"]
-    total_efficiency_frac_error = 1.025
+    # this is not presently in use
+    total_efficiency_frac_error = 1.05
 
     Q_external_frac_error = 1.025
     rs = sp["rs"]
     rs_frac_error = 1.025
     rn0_guess = counts[0] / sp["total_efficiency"] / delta_t
-    rn0_frac_error = np.sqrt(1.05 ** 2 + total_efficiency_frac_error ** 2)
+    # place a floor value on rn0
+    rn0_guess = max(rn0_guess, 1 / sp["total_efficiency"] / delta_t)
     rn0_frac_error = 1.25
     # radon - reference value (for scaling initial guess)
     rn_ref = (counts.mean() / delta_t - background_count_rate) / sp["total_efficiency"]
@@ -357,19 +381,25 @@ def construct_model(
 
     with radon_detector_model:
         if radon_conc_known:
-            radon = pm.Constant("radon", known_radon, shape=(Npts,))
+            radon = pm.Constant("radon", known_radon.astype(float), shape=(Npts,))
         else:
             if smooth_radon_timeseries:
                 # radon timeseries (with smoothing prior)
                 logradon = pm.GaussianRandomWalk(
-                    "logradon", shape=(Npts,), mu=0, sigma=sp["expected_change_std"]
+                    "logradon",
+                    shape=(Npts,),
+                    mu=0,
+                    sigma=np.log(sp["expected_change_std"]),
                 )
                 radon = pm.Deterministic("radon", rn_ref * pm.math.exp(logradon))
             else:
                 # otherwise, just put radon somewhere close to its mean value
-                radon = pm.Lognormal(
-                    "radon", mu=rn_ref, sigma=np.log(2.0), shape=(Npts,)
-                )
+                # fix sigma and then use the relationship that, for
+                # lognormal, E[x] = exp(mu + 1/2 sigma**2)
+                # => mu = log(E[x]) - 1/2 sigma**2
+                sigma_rn = np.log(2.0)
+                mu_rn = np.log(rn_ref) - 0.5 * sigma_rn ** 2
+                radon = pm.Lognormal("radon", mu=mu_rn, sigma=sigma_rn, shape=(Npts,))
 
         # detector parameter priors
         # note: assuming that sigma << mu for Lognormal distributions
@@ -378,7 +408,9 @@ def construct_model(
             "rs", mu=np.log(rs), sigma=np.log(rs_frac_error)
         )
         rn0 = pm.distributions.Lognormal(
-            "rn0", mu=np.log(rn0_guess), sigma=np.log(rn0_frac_error)
+            "rn0",
+            mu=np.log(rn0_guess) - 0.5 * np.log(rn0_frac_error) ** 2,
+            sigma=np.log(rn0_frac_error),
         )
 
         if Q_external_frac_error > 0:
@@ -440,6 +472,7 @@ def construct_model(
                 delta_t=delta_t,
                 detector_params=detector_params,
                 simulate_calibration=simulate_calibration,
+                cal_injection_upstream_of_delay=cal_injection_upstream_of_delay,
             )
             + background_count_rate * delta_t,
         )

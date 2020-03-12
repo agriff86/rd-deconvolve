@@ -22,7 +22,7 @@ log_format = (
     "%(color)s[%(levelname)1.1s PID=%(process)d %(asctime)s]%(end_color)s %(message)s"
 )
 
-formatter = logzero.LogFormatter(fmt=log_format)
+formatter = logzero.LogFormatter(fmt=log_format, datefmt='%H:%M:%S')
 logzero.setup_default_logger(formatter=formatter)
 
 # setup the pymc3 logger to use the same settings as the main one

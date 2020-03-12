@@ -3,10 +3,6 @@ import os
 import datetime
 import numpy as np
 
-PARALLEL = False
-if PARALLEL:
-    from dask.distributed import Client
-
 EXAMPLE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 RAW_DATA_DIR = os.path.join(
@@ -18,8 +14,7 @@ sys.path.append(PROJECT_DIR)
 import rddeconv
 
 
-def main(dask_client):
-
+def main():
 
     #
     # ... load/munge data
@@ -48,7 +43,7 @@ def main(dask_client):
 
     df["total_efficiency"] = 0.154
 
-    print(df[['lld','uld']].head(10))
+    print(df[["lld", "uld"]].head(10))
 
     parameters = {}
     parameters.update(rddeconv.standard_parameters_700L)
@@ -69,21 +64,9 @@ def main(dask_client):
     overlap = 12
 
     rddeconv.deconvolve_dataframe_in_chunks(
-        df, parameters, chunksize=chunksize, Noverlap=overlap, joblib_tasks=10
+        df, parameters, chunksize=chunksize, Noverlap=overlap, joblib_tasks=10, figdir='./figs'
     )
 
 
-
-
 if __name__ == "__main__":
-    try:
-        if PARALLEL:
-            dask_client = Client()
-        else:
-            dask_client = None
-
-        main(dask_client)
-    
-    finally:
-        if PARALLEL:
-            dask_client.shutdown()
+    main()
