@@ -1,5 +1,6 @@
 # distutils: language = c++
 # distutils: sources = rddeconv/fast_detector_model.cpp
+# cython: language_level=3
 
 """
 references:
