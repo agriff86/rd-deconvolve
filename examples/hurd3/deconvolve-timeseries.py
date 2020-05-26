@@ -59,10 +59,10 @@ def test_df_deconvolve_goulburn(nproc, one_night_only=False):
 
 
     # drop the calibration period
-    df = df.ix[datetime.datetime(2011, 11, 2, 18):]
+    df = df[datetime.datetime(2011, 11, 2, 18):]
 
     # drop the bad data at the end of the record
-    df = df.ix[:datetime.datetime(2011, 11, 10, 12)]
+    df = df[:datetime.datetime(2011, 11, 10, 12)]
 
     #
     # ... set instrument parameters
