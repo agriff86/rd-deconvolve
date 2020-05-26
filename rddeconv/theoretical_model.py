@@ -81,9 +81,7 @@ def calc_NaNbNc_num(Q, V_tank, lamp, Nrn):
     return t, soln  #for testing
 
 
-from numba import jit
 from numpy import exp
-@jit
 def calc_NaNbNc(t, Nrn, lamp):
     """
     Compute concentrations of radon progeny at time t
