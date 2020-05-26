@@ -61,5 +61,6 @@ setup(
         "logzero",
         "theano",
         "scipy",
+        "joblib",
     ],
 )
