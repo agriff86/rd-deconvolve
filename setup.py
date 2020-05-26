@@ -26,7 +26,7 @@ include_dirs = [np.get_include()] + BOOST_INCLUDE_DIRS
 
 extensions = [
     Extension(
-        "fast_detector",
+        '.'.join([CODE_DIRECTORY, "fast_detector"]),
         sources=[os.path.join(CODE_DIRECTORY, "fast_detector.pyx")],
         include_dirs=include_dirs,
     )
