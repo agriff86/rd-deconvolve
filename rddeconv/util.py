@@ -14,6 +14,7 @@ import pandas as pd
 import datetime
 import time
 import glob
+import chardet
 
 
 # a standard set of detector parameters
@@ -152,7 +153,12 @@ def load_standard_csv(fname: str) -> pd.DataFrame:
 
     dfl = []
     for fn in fnames:
-        df = pd.read_csv(fname)
+        # detect encoding first - some detector seem to be in latin-1
+        with open(fn, 'rb') as rawdata:
+            # some protection against multi-gigabtye files (read 100Mb)
+            result = chardet.detect(rawdata.read(1024*1024*100))
+            encoding = result['encoding']
+        df = pd.read_csv(fname, encoding=encoding)
         df.columns = [itm.strip().lower() for itm in df.columns]
         df['time'] = df.time.apply(parse_hhmm_string)
         df.columns = [itm.strip().lower() for itm in df.columns]
