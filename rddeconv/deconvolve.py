@@ -61,10 +61,10 @@ class FigureManager(object):
     def save_figure(self, fig, title):
         fmt = "png"
         try:
-            fname = os.path.join(self._figdir, f"{self.chunk_id:03}_{title}.{fmt}")
+            fname = os.path.join(self._figdir, f"{title}_{self.chunk_id:03}.{fmt}")
         except ValueError:
             # chunk_id may be non-numeric
-            fname = os.path.join(self._figdir, f"{self.chunk_id}_{title}.{fmt}")
+            fname = os.path.join(self._figdir, f"{title}_{self.chunk_id}.{fmt}")
         fig.savefig(fname, dpi=300, transparent=False, bbox_inches="tight")
 
 
@@ -129,13 +129,18 @@ def deconvolve_dataframe_in_chunks(
     def run_task(dfss, chunk_id):
         logger.info(f"Processing chunk {chunk_id}")
         figure_manager = FigureManager(figdir, chunk_id)
-        ds_trace = deconvolve_dataframe(
-            dfss, figure_manager=figure_manager, **constant_kwargs
-        )
-        ds_output = add_chunk_metadata(ds_trace, chunk_id, Noverlap)
-        fname = f"{fname_base}_chunk{chunk_id:04}.nc"
-        logger.info(f"Writing MCMC samples to {fname}")
-        ds_output.to_netcdf(fname)
+        try:
+            ds_trace = deconvolve_dataframe(
+                dfss, figure_manager=figure_manager, **constant_kwargs
+            )
+            ds_output = add_chunk_metadata(ds_trace, chunk_id, Noverlap)
+            fname = f"{fname_base}_chunk{chunk_id:04}.nc"
+            logger.info(f"Writing MCMC samples to {fname}")
+            ds_output.to_netcdf(fname)
+        except Exception as e:
+            logger.warning(f"Unable to process chunk {chunk_id}")
+            logger.warning(e)
+            fname = None
         return fname
 
     fnames = []
