@@ -30,6 +30,10 @@ from . import util
 from . import fast_detector
 from . import theoretical_model as tm
 
+import logzero
+
+logger = logzero.logger
+
 lamrn = 2.1001405267111005e-06
 lama = 0.0037876895112565318
 lamb = 0.00043106167945270227
@@ -204,8 +208,8 @@ def lnlike(p, parameters):
     Nobs = len(observed_counts)
     detector_count_rate = detector_model_specialised(p, parameters)
     if not len(detector_count_rate) == Nobs-1:
-        print(len(detector_count_rate), Nobs)
-        assert False
+        logger.error(f"detector counts does not equal Nobs: {len(detector_count_rate)}, {Nobs}")
+        raise ValueError()
     #scale counts so that total number of counts is preserved (?)
     # detector_count_rate
     lp = poisson.logpmf(observed_counts[1:], detector_count_rate)
@@ -297,6 +301,7 @@ def lnprior_difference(radon_concentration_timeseries, parameters):
         # print('rn conc < 0')
     else:
         dpdt = np.diff(np.log(p))
+        # TODO: this was an experiment and should probably be removed
         if 'ignore_N_steps' in parameters:
             n = parameters['ignore_N_steps']
             if n > 0 and n < len(dpdt):
@@ -366,9 +371,8 @@ def lnprob(p, parameters):
     if np.isnan(lp):
         # this should not happen, but let's press on regardless with an
         # error message
-        print('NaN during log-probability calculation, set to minus Inf.')
-        print('parameters are:')
-        print(p)
+        logger.error('NaN during log-probability calculation, set to minus Inf. Parameters are:')
+        logger.error(p)
         lp = -np.inf
     return lp
 
@@ -406,14 +410,14 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     parameters['observed_counts'] = observed_counts
 
     if radon_conc_is_known:
-        print("Trying to adjust hyper parameters to match observations")
+        logger.info("Trying to adjust hyper parameters to match observations")
         parameters['radon_conc'] = radon_conc
     else:
-        print("Trying to deconvolve observations")
+        logger.info("Trying to deconvolve observations")
 
     # default - constant temperature of 20 degC
     if len(internal_airt_history) == 0:
-        print("Internal air temperature not provided. Assuming constant 20degC")
+        logger.warning("Internal air temperature not provided. Assuming constant 20degC")
         internal_airt_history = np.zeros(len(t)) + 273.15 + 20.0
 
     parameters.update( dict(variable_parameter_names=variable_parameter_names,
@@ -485,7 +489,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         radon_conc = rltv_radon_timeseries.copy()
 
-        print("RLTV should preserve total counts, this should be close to 1:",
+        logger.debug("RLTV should preserve total counts, this should be close to 1:",
                         radon_conc.sum()/observed_counts.sum())
 
         # don't accept radon concentration less than 30 mBq/m3 in the guess
@@ -521,21 +525,21 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         total_efficiency = Y0eff[-1]
 
         if 'total_efficiency' in parameters:
-            print("prescribed total eff:", parameters['total_efficiency'])
+            logger.info("prescribed total eff:", parameters['total_efficiency'])
             # detector overall efficiency
             total_efficiency_correction = parameters['total_efficiency']
         else:
             total_efficiency_correction = total_efficiency
 
-        print("computed total eff:", total_efficiency)
+        logger.debug("computed total eff:", total_efficiency)
 
         radon_conc = (radon_conc / parameters['tres'] /
                             total_efficiency_correction / lamrn )
 
         p_rltv = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, radon_conc)
         modcounts = detector_model_specialised(p_rltv, parameters)
-        print("Model initial guess should preserve total counts.")
-        print("--- this should be close to 1:",
+        logger.debug("Model initial guess should preserve total counts.")
+        logger.debug("--- this should be close to 1:",
                                 modcounts.sum()/observed_counts.sum())
         # force initial guess to preserve total counts
         # -- unless there are NaNs in observed counts, in which case we can't
@@ -544,7 +548,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
             radon_conc /= tc_ratio
             p_rltv_adj = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, radon_conc)
             modcounts = detector_model_specialised(p_rltv_adj, parameters)
-            print("---- after adjustment:",
+            logger.debug("---- after adjustment:",
                                     modcounts.sum()/observed_counts.sum())        
             f, ax = plt.subplots()
             ax.plot(observed_counts, label='Observed counts')
@@ -579,13 +583,13 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     #print(parameters)
     #print(unpack_parameters(p, parameters)[0])
     # we should now be able to compute the liklihood of the initial location p
-    print("Initial guess P0 log-prob:",lnprob(p, parameters))
+    logger.debug("Initial guess P0 log-prob:",lnprob(p, parameters))
     if not np.isfinite(lnprob(p,parameters)):
-        print("non-finite P0 for initial guess")
-        print("p-vector:", p)
-        print("parameters:")
+        logger.error("non-finite P0 for initial guess")
+        logger.error("p-vector:", p)
+        logger.error("parameters:")
         for k,v in parameters.items():
-            print("'{}' : {}".format(k, v))
+            logger.error("'{}' : {}".format(k, v))
 
     assert np.isfinite(lnprob(p, parameters))
     # the function should return -np.inf for negative values in parameters
@@ -621,10 +625,10 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
                 axl[1].plot(radon_conc)
                 plt.show()
             if (p.min() < 0) and False:
-                print('Parameter less than 0 in minus_lnprob call')
+                logger.error('Parameter less than 0 in minus_lnprob call')
                 hparams = p[nstate:nstate+nhyper]
-                print(zip(parameters['variable_parameter_names'], hparams))
-                print(nstate, nhyper, np.where(p<0))
+                logger.error(list(zip(parameters['variable_parameter_names'], hparams)))
+                logger.error(nstate, nhyper, np.where(p<0))
             if (p.min() < 0) and False:
                 f, axl = plt.subplots(1, 2, figsize=[4,1.5])
                 axl[0].plot(parameters['observed_counts'])
@@ -642,7 +646,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         # method = 'BFGS' # BFGS is not working
         #check that we can call this
         x = transform_parameters(p, parameters)
-        print("minus_lnprob:", minus_lnprob(x, parameters))
+        logger.debug("minus_lnprob:", minus_lnprob(x, parameters))
 
         # use log radon conc in x0
         ### x0 = np.r_[ p[0: nstate+nhyper], np.log(p[nstate+nhyper:])]
@@ -656,7 +660,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         with util.timewith(name=method):
             x0 = transform_parameters(p, parameters)
-            print('x0:',x0)
+            logger.debug('x0:',x0)
             ret = minimize(minus_lnprob, x0=x0, args=(parameters,), method=method,
                             options=dict(maxiter=200,
                                          maxfev=800000))
@@ -665,13 +669,13 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
             pmin = inverse_transform_parameters(ret.x, parameters)
 
             ### pmin = np.r_[pmin[0: nstate+nhyper], np.exp(pmin[nstate+nhyper:])]
-            print("MAP P0 log-prob:", lnprob(pmin, parameters))
+            logger.debug("MAP P0 log-prob:", lnprob(pmin, parameters))
 
-        print("MAP fitting results:")
+        logger.debug("MAP fitting results:")
         ret.pop('direc') # too much output on screen
-        print(ret)
+        logger.debug(ret)
 
-        print('(from MAP) pmin:', pmin)
+        logger.debug('(from MAP) pmin:', pmin)
 
         y1 = detector_model_specialised(pmin, parameters)
         y0 = observed_counts[1:]
@@ -682,7 +686,8 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         ax.plot(y_ig, label='model_guess_before_MAP')
         ax.legend()
         ax.set_title((pmin/p00)[nstate:nstate+nhyper])
-        print(zip(variable_parameter_names, (pmin/p)[nstate:nstate+nhyper]))
+        logger.debug("Parameters - MAP value / initial guess")
+        logger.debug(zip(variable_parameter_names, (pmin/p)[nstate:nstate+nhyper]))
         plt.show()
 
         map_radon_timeseries = []
@@ -708,7 +713,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     parameters['transform_radon_timeseries'] = transform_radon_timeseries
 
     if not radon_conc_is_known and transform_radon_timeseries:
-        print('Transforming radon timeseries for emcee sampling')
+        logger.info('Transforming radon timeseries for emcee sampling')
         orig = p[nstate+nhyper:].copy()
         fast_detector.transform_radon_concs_inplace(p[nstate+nhyper:])
         #f, ax = plt.subplots()
@@ -718,9 +723,9 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         #plt.show()
         check = fast_detector.inverse_transform_radon_concs(p[nstate+nhyper:])
         if not np.allclose(orig, check):
-            print("transformed radon concs do not match inverse")
-            print("(orig,inv) pairs follow")
-            print( [itm for itm in zip(orig, check)] )
+            logger.error("transformed radon concs do not match inverse")
+            logger.error("(orig,inv) pairs follow")
+            logger.error( [itm for itm in zip(orig, check)] )
             assert False
 
     # Number of walkers needs to be at least 2x number of dimensions
@@ -734,10 +739,10 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     p0 = emcee.utils.sample_ball(p, std=p/1000.0, size=Nwalker)
 
     # check that the lnprob function still works
-    print("initial lnprob value:", lnprob(p, parameters))
+    logger.info("initial lnprob value:", lnprob(p, parameters))
 
-    print("About to start emcee sampler.  Parameters are:")
-    print(parameters)
+    logger.info("About to start emcee sampler.  Parameters are:")
+    logger.info(parameters)
 
     from multiprocessing.pool import ThreadPool
     if nthreads > 1:
@@ -758,7 +763,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         # sample
         pos,prob,state = sampler.run_mcmc(pos, iterations, thin=thin)
 
-    print('EnsembleSampler mean acceptance fraction during sampling:',
+    logger.info('EnsembleSampler mean acceptance fraction during sampling:',
             sampler.acceptance_fraction.mean())
 
     #assert sampler.acceptance_fraction.mean() > 0.05
@@ -804,9 +809,9 @@ def overlapping_chunk_dataframe_iterator(df, chunksize, overlap=0):
 def chunkwise_apply(df, chunksize, overlap, func, func_args=(), func_kwargs={},
                     nproc=1):
     chunks = list(overlapping_chunk_dataframe_iterator(df, chunksize, overlap))
-    print('chunkwise_apply...')
-    print('    input data length', len(df))
-    print('    split into', len(chunks), 'of length', len(chunks[0]))
+    logger.info('chunkwise_apply...')
+    logger.info('    input data length', len(df))
+    logger.info('    split into', len(chunks), 'of length', len(chunks[0]))
 
     if nproc == 1:
         results = [func(itm, *func_args, **func_kwargs) for itm in chunks]
@@ -882,10 +887,10 @@ def emcee_deconvolve_tm(df, col_name='lld',
         # the internal airt history should already have been converted to K
         internal_airt_history = df['airt'].values
         if not internal_airt_history.min() > 200.0:
-            print("'airt' needs to be in K at the observation time")
+            logger.error("'airt' needs to be in K at the observation time")
             raise ValueError("'airt' needs to be in K at the observation time")
         if not internal_airt_history.max() < 400:
-            print("error in 'airt'")
+            logger.error("error in 'airt'")
             raise ValueError('airt too high',internal_airt_history.max())
 
         # update with prescribed parameters
@@ -900,7 +905,7 @@ def emcee_deconvolve_tm(df, col_name='lld',
                 column_name = parameters[param_name]
                 parameters[param_name] = df[column_name].mean()
                 params_from_dataframe.append(param_name)
-                print(param_name,'from data:', parameters[param_name])
+                logger.debug(param_name,'from data:', parameters[param_name])
 
         # detector overall efficiency - check it's close to the prescribed efficiency
         # TODO: should eff be adjusted here?
@@ -912,15 +917,15 @@ def emcee_deconvolve_tm(df, col_name='lld',
                                     recoil_prob=0.5*(1-rs),
                                     eff=parameters['eff'])
         total_efficiency = Y0eff[-1]
-        print("computed total eff:", total_efficiency, "  prescribed:",
+        logger.debug("computed total eff:", total_efficiency, "  prescribed:",
                                                     parameters['total_efficiency'])
 
         if 'total_efficiency' in params_from_dataframe:
-            print('Adjusting "eff" parameter so that computed efficiency matches '+
+            logger.debug('Adjusting "eff" parameter so that computed efficiency matches '+
                   'prescribed')
-            print('  old value of eff:', parameters['eff'])
+            logger.debug('  old value of eff:', parameters['eff'])
             parameters['eff'] = parameters['total_efficiency'] / total_efficiency * parameters['eff']
-            print('  new value of eff:', parameters['eff'])
+            logger.debug('  new value of eff:', parameters['eff'])
 
         # priors
         if dict_priors is not None:
@@ -1055,7 +1060,7 @@ def emcee_deconvolve_tm(df, col_name='lld',
             raise
         else:
             ret = None
-            print(__name__, ' encounted an exception, but is trying to continue ',
+            logger.warning(__name__, ' encounted an exception, but is trying to continue ',
                                     type(e), e)
     return ret
 
