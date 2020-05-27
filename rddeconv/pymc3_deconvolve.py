@@ -49,6 +49,9 @@ import time as timelib
 
 lamrn = 2.100140526711101e-06
 
+class DeconvolutionError(Exception):
+    pass
+
 
 @contextmanager
 def timing(description: str) -> None:
@@ -180,7 +183,7 @@ def trace_as_xarray(index_time, trace, vn="deconvolved_radon"):
     vars_to_drop = [
         "logradon_dim_0",
         "logradon",
-        "E_simulated_counts",
+    #    "E_simulated_counts",
         "E_simulated_counts_dim_0",
     ]
     for k in vars_to_drop:
@@ -290,6 +293,10 @@ def construct_model(
     sp = detector_params
     # derived variables and flags
     Npts = len(counts)
+    # note - theano doesn't handle boolean masks, hence the .nonzero()
+    # ref: https://stackoverflow.com/questions/37425401/theano-tensor-slicing-how-to-use-boolean-to-slice
+    flag_valid = np.isfinite(counts).nonzero()
+    Npts_valid = len(counts[flag_valid])
     delta_t = time[1] - time[0]
 
     if time[0] == 0:
@@ -338,6 +345,9 @@ def construct_model(
     logger.info(
         f"Timeseries is {Npts} points long with {np.isnan(counts).sum()} NaN values"
     )
+    if Npts - np.isnan(counts).sum() < 1:
+        raise DeconvolutionError('No valid data for deconvolution')
+
     logger.debug(f"Timestep is {delta_t/60} minutes")
     # Priors --
     # we'll express these with a lognormal distribution
@@ -352,12 +362,12 @@ def construct_model(
     Q_external_frac_error = 1.025
     rs = sp["rs"]
     rs_frac_error = 1.025
-    rn0_guess = counts[0] / sp["total_efficiency"] / delta_t
+    rn0_guess = counts[np.isfinite(counts)][0] / sp["total_efficiency"] / delta_t
     # place a floor value on rn0
     rn0_guess = max(rn0_guess, 1 / sp["total_efficiency"] / delta_t)
     rn0_frac_error = 1.25
     # radon - reference value (for scaling initial guess)
-    rn_ref = (counts.mean() / delta_t - background_count_rate) / sp["total_efficiency"]
+    rn_ref = (counts[np.isfinite(counts)].mean() / delta_t - background_count_rate) / sp["total_efficiency"]
 
     # are we simulating a calibration?
     if simulate_calibration:
@@ -369,7 +379,8 @@ def construct_model(
 
     # guard against rn_ref < 0
     if rn_ref <= 0:
-        rn_ref = (counts.mean() / delta_t - background_count_rate) / sp[
+        # don't subtract off the background
+        rn_ref = (counts[np.isfinite(counts)].mean() / delta_t ) / sp[
             "total_efficiency"
         ]
 
@@ -477,7 +488,7 @@ def construct_model(
             + background_count_rate * delta_t,
         )
         pm.distributions.Poisson(
-            "counts", mu=E_simulated_counts, observed=counts, shape=(Npts,)
+            "counts", mu=E_simulated_counts[flag_valid], observed=counts[flag_valid], shape=(Npts_valid,)
         )
 
     return radon_detector_model
