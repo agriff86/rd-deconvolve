@@ -18,7 +18,6 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib as mpl
-mpl.use('pdf')  # for running command-line only
 import matplotlib.pyplot as plt
 
 
@@ -29,6 +28,7 @@ import emcee
 from . import util
 from . import fast_detector
 from . import theoretical_model as tm
+from .deconvolve import FigureManager
 
 import logzero
 
@@ -371,8 +371,7 @@ def lnprob(p, parameters):
     if np.isnan(lp):
         # this should not happen, but let's press on regardless with an
         # error message
-        logger.error('NaN during log-probability calculation, set to minus Inf. Parameters are:')
-        logger.error(p)
+        logger.error(f'NaN during log-probability calculation, set to minus Inf. Parameters are: {p}')
         lp = -np.inf
     return lp
 
@@ -385,7 +384,8 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
                           variable_parameters_sigma_prior = np.array([]),
                           walkers_per_dim=2, keep_burn_in_samples=False, thin=2,
                           nthreads=1,
-                          iterations=200):
+                          iterations=200,
+                          figure_manager=None):
     """
     TODO: doc
     """
@@ -489,8 +489,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         radon_conc = rltv_radon_timeseries.copy()
 
-        logger.debug("RLTV should preserve total counts, this should be close to 1:",
-                        radon_conc.sum()/observed_counts.sum())
+        logger.debug(f"RLTV should preserve total counts, this should be close to 1: {radon_conc.sum()/observed_counts.sum()}")
 
         # don't accept radon concentration less than 30 mBq/m3 in the guess
         mbq30 = 100 # TODO: this is counts, work out a proper threshold 30e-3/tm.lamrn
@@ -505,15 +504,19 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
             # counts per counting interval, gets converted to atoms/m3 later
             radon_conc = np.zeros(radon_conc.size) + observed_counts[0]
 
-        f, ax = plt.subplots()
+        f1, ax = plt.subplots()
         ax.plot(one_sided_prf)
         ax.set_title('point-response function, used for RLTV initial guess')
+            
 
-        f, ax = plt.subplots()
+        f2, ax = plt.subplots()
         ax.plot(observed_counts, label='observed counts')
         ax.plot(radon_conc, label='RLTV deconvolution')
         ax.legend()
-        plt.show()
+
+        if figure_manager is not None:
+            figure_manager.save_figure(f1, 'emcee-point-response-function')
+            figure_manager.save_figure(f1, 'emcee-RLTV-deconvolution')
 
         rs = parameters['rs']
         Y0eff = fast_detector.calc_steady_state(1/lamrn,
@@ -525,22 +528,20 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         total_efficiency = Y0eff[-1]
 
         if 'total_efficiency' in parameters:
-            logger.info("prescribed total eff:", parameters['total_efficiency'])
+            logger.info(f"prescribed total eff:{parameters['total_efficiency']}")
             # detector overall efficiency
             total_efficiency_correction = parameters['total_efficiency']
         else:
             total_efficiency_correction = total_efficiency
 
-        logger.debug("computed total eff:", total_efficiency)
+        logger.debug(f"computed total eff: {total_efficiency}")
 
         radon_conc = (radon_conc / parameters['tres'] /
                             total_efficiency_correction / lamrn )
 
         p_rltv = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, radon_conc)
         modcounts = detector_model_specialised(p_rltv, parameters)
-        logger.debug("Model initial guess should preserve total counts.")
-        logger.debug("--- this should be close to 1:",
-                                modcounts.sum()/observed_counts.sum())
+        logger.debug(f"Model initial guess should preserve total counts.  This should be close to 1: {modcounts.sum()/observed_counts.sum()}")
         # force initial guess to preserve total counts
         # -- unless there are NaNs in observed counts, in which case we can't
         if np.isfinite(observed_counts.sum()):
@@ -548,17 +549,16 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
             radon_conc /= tc_ratio
             p_rltv_adj = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, radon_conc)
             modcounts = detector_model_specialised(p_rltv_adj, parameters)
-            logger.debug("---- after adjustment:",
-                                    modcounts.sum()/observed_counts.sum())        
+            logger.debug(f"---- after adjustment: {modcounts.sum()/observed_counts.sum()}")        
             f, ax = plt.subplots()
             ax.plot(observed_counts, label='Observed counts')
             ax.plot(np.r_[np.nan, modcounts],
                     label='Modelled counts using RLTV radon timeseries')
             ax.legend()
 
+            if figure_manager is not None:
+                figure_manager.save_figure(f, 'emcee-modelled-counts-from-RLTV')
 
-
-        plt.show()
 
         assert len(radon_conc) == len(observed_counts)
     
@@ -583,10 +583,10 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     #print(parameters)
     #print(unpack_parameters(p, parameters)[0])
     # we should now be able to compute the liklihood of the initial location p
-    logger.debug("Initial guess P0 log-prob:",lnprob(p, parameters))
+    logger.debug(f"Initial guess P0 log-prob: {lnprob(p, parameters)}")
     if not np.isfinite(lnprob(p,parameters)):
         logger.error("non-finite P0 for initial guess")
-        logger.error("p-vector:", p)
+        logger.error(f"p-vector: {p}")
         logger.error("parameters:")
         for k,v in parameters.items():
             logger.error("'{}' : {}".format(k, v))
@@ -628,7 +628,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
                 logger.error('Parameter less than 0 in minus_lnprob call')
                 hparams = p[nstate:nstate+nhyper]
                 logger.error(list(zip(parameters['variable_parameter_names'], hparams)))
-                logger.error(nstate, nhyper, np.where(p<0))
+                logger.error([nstate, nhyper, np.where(p<0)])
             if (p.min() < 0) and False:
                 f, axl = plt.subplots(1, 2, figsize=[4,1.5])
                 axl[0].plot(parameters['observed_counts'])
@@ -646,7 +646,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         # method = 'BFGS' # BFGS is not working
         #check that we can call this
         x = transform_parameters(p, parameters)
-        logger.debug("minus_lnprob:", minus_lnprob(x, parameters))
+        logger.debug(f"minus_lnprob: {minus_lnprob(x, parameters)}")
 
         # use log radon conc in x0
         ### x0 = np.r_[ p[0: nstate+nhyper], np.log(p[nstate+nhyper:])]
@@ -660,7 +660,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         with util.timewith(name=method):
             x0 = transform_parameters(p, parameters)
-            logger.debug('x0:',x0)
+            logger.debug(f'x0: {x0}')
             ret = minimize(minus_lnprob, x0=x0, args=(parameters,), method=method,
                             options=dict(maxiter=200,
                                          maxfev=800000))
@@ -669,13 +669,13 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
             pmin = inverse_transform_parameters(ret.x, parameters)
 
             ### pmin = np.r_[pmin[0: nstate+nhyper], np.exp(pmin[nstate+nhyper:])]
-            logger.debug("MAP P0 log-prob:", lnprob(pmin, parameters))
+            logger.debug(f"MAP P0 log-prob: {lnprob(pmin, parameters)}")
 
         logger.debug("MAP fitting results:")
         ret.pop('direc') # too much output on screen
-        logger.debug(ret)
+        logger.debug(f"{ret}")
 
-        logger.debug('(from MAP) pmin:', pmin)
+        logger.debug(f'(from MAP) pmin: {pmin}')
 
         y1 = detector_model_specialised(pmin, parameters)
         y0 = observed_counts[1:]
@@ -687,8 +687,9 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         ax.legend()
         ax.set_title((pmin/p00)[nstate:nstate+nhyper])
         logger.debug("Parameters - MAP value / initial guess")
-        logger.debug(zip(variable_parameter_names, (pmin/p)[nstate:nstate+nhyper]))
-        plt.show()
+        logger.debug(list(zip(variable_parameter_names, (pmin/p)[nstate:nstate+nhyper])))
+        if figure_manager is not None:
+            figure_manager.save_figure(f, 'emcee-model-vs-obs')
 
         map_radon_timeseries = []
 
@@ -702,12 +703,15 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
             ax.plot(p00[nstate+nhyper:]*lamrn, label='RLTV deconvolution')
             ax.legend()
             ax.set_ylabel('Bq/m3')
+            if figure_manager is not None:
+                figure_manager.save_figure(f, 'emcee-MAP')
+
 
             map_radon_timeseries = pmin[nstate+nhyper:].copy()
 
         p = pmin.copy()
 
-        plt.show()
+        plt.close('all')
 
     # restore the original value of this parameter
     parameters['transform_radon_timeseries'] = transform_radon_timeseries
@@ -739,10 +743,9 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     p0 = emcee.utils.sample_ball(p, std=p/1000.0, size=Nwalker)
 
     # check that the lnprob function still works
-    logger.info("initial lnprob value:", lnprob(p, parameters))
+    logger.info(f"initial lnprob value: {lnprob(p, parameters)}")
 
-    logger.info("About to start emcee sampler.  Parameters are:")
-    logger.info(parameters)
+    logger.info(f"About to start emcee sampler.  Parameters are: {parameters}")
 
     from multiprocessing.pool import ThreadPool
     if nthreads > 1:
@@ -763,8 +766,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         # sample
         pos,prob,state = sampler.run_mcmc(pos, iterations, thin=thin)
 
-    logger.info('EnsembleSampler mean acceptance fraction during sampling:',
-            sampler.acceptance_fraction.mean())
+    logger.info(f'EnsembleSampler mean acceptance fraction during sampling: {sampler.acceptance_fraction.mean()}')
 
     #assert sampler.acceptance_fraction.mean() > 0.05
 
@@ -810,22 +812,24 @@ def chunkwise_apply(df, chunksize, overlap, func, func_args=(), func_kwargs={},
                     nproc=1):
     chunks = list(overlapping_chunk_dataframe_iterator(df, chunksize, overlap))
     logger.info('chunkwise_apply...')
-    logger.info('    input data length', len(df))
-    logger.info('    split into', len(chunks), 'of length', len(chunks[0]))
+    logger.info(f'    input data length {len(df)}')
+    logger.info(f'    split into {len(chunks)} of length {len(chunks[0])}')
+    chunk_id_list = list(range(0, len(chunks)))
 
     if nproc == 1:
-        results = [func(itm, *func_args, **func_kwargs) for itm in chunks]
+        results = [func(itm, *func_args, **func_kwargs, _chunk_id=chunk_id) for itm,chunk_id in zip(chunks, chunk_id)]
     else:
         # parallel version
         from joblib import Parallel, delayed
         par = Parallel(n_jobs=nproc, verbose=50)
         results = par(delayed(func)(itm, *func_args, **func_kwargs)
                                  for itm in chunks)
+    # add chunk_id field
+    for itm, chunk_id in zip(results, chunk_id_list):
+        if itm is not None:
+            itm['chunk_id'] = chunk_id
     # filter out results which encounted an error during processing
     results = [itm for itm in results if itm is not None]
-    # add a chunk_id field
-    for ii,itm in enumerate(results):
-        itm['chunk_id'] = ii
     # strip the overlap
     if overlap>0:
         results = [itm.iloc[overlap:-overlap] for itm in results]
@@ -840,7 +844,9 @@ def emcee_deconvolve_tm(df, col_name='lld',
                     keep_burn_in_samples=False, thin=1,
                     walkers_per_dim=3, chunksize=None, overlap=None, short_output=True,
                     stop_on_error=False,
-                    dict_priors=None
+                    dict_priors=None,
+                    figdir=None,
+                    _chunk_id=None,
                     ):
     """
     TODO: docstring
@@ -855,6 +861,7 @@ def emcee_deconvolve_tm(df, col_name='lld',
                                 keep_burn_in_samples=keep_burn_in_samples,
                                 thin=thin,
                                 walkers_per_dim=walkers_per_dim,
+                                figdir=figdir,
                                 chunksize=None, overlap=None, short_output=True)
         dfret  = chunkwise_apply(df,
                                              chunksize=chunksize,
@@ -866,6 +873,7 @@ def emcee_deconvolve_tm(df, col_name='lld',
         return dfret
 
     try:
+        figure_manager = FigureManager(figdir, _chunk_id)
         #
         # default parameters for theoretical model of detector
         #
@@ -905,7 +913,7 @@ def emcee_deconvolve_tm(df, col_name='lld',
                 column_name = parameters[param_name]
                 parameters[param_name] = df[column_name].mean()
                 params_from_dataframe.append(param_name)
-                logger.debug(param_name,'from data:', parameters[param_name])
+                logger.debug(f"{param_name} from data: {parameters[param_name]}")
 
         # detector overall efficiency - check it's close to the prescribed efficiency
         # TODO: should eff be adjusted here?
@@ -917,15 +925,14 @@ def emcee_deconvolve_tm(df, col_name='lld',
                                     recoil_prob=0.5*(1-rs),
                                     eff=parameters['eff'])
         total_efficiency = Y0eff[-1]
-        logger.debug("computed total eff:", total_efficiency, "  prescribed:",
-                                                    parameters['total_efficiency'])
+        logger.debug(f"computed total eff: {total_efficiency} prescribed: {parameters['total_efficiency']}")
 
         if 'total_efficiency' in params_from_dataframe:
             logger.debug('Adjusting "eff" parameter so that computed efficiency matches '+
                   'prescribed')
-            logger.debug('  old value of eff:', parameters['eff'])
+            logger.debug(f"  old value of eff: {parameters['eff']}")
             parameters['eff'] = parameters['total_efficiency'] / total_efficiency * parameters['eff']
-            logger.debug('  new value of eff:', parameters['eff'])
+            logger.debug(f"  new value of eff: {parameters['eff']}")
 
         # priors
         if dict_priors is not None:
@@ -970,7 +977,8 @@ def emcee_deconvolve_tm(df, col_name='lld',
                  iterations=iterations,
                  thin=thin,
                  keep_burn_in_samples=keep_burn_in_samples,
-                 nthreads=nthreads)
+                 nthreads=nthreads,
+                 figure_manager=figure_manager)
 
         (sampler, A, mean_est, low, high, parameters, map_radon_timeseries,
         rl_radon_timeseries, rltv_radon_timeseries) = fit_ret
@@ -1047,8 +1055,8 @@ def emcee_deconvolve_tm(df, col_name='lld',
         plot_cols = [itm for itm in dfret.columns if col_name+'_' in itm]
         dfret[plot_cols].plot(ax=ax)
 
-        plt.show()
-        plt.close('all')
+        figure_manager.save_figure(f, 'emcee-result')
+
 
         if short_output:
             ret = dfret
