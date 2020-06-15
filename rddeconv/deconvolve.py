@@ -54,11 +54,14 @@ def get_overlapping_chunks(df: pd.DataFrame, chunksize: int, overlap: int = 0):
 class FigureManager(object):
     def __init__(self, figdir, chunk_id):
         self._figdir = figdir
+        self._inactive = figdir is None
         self.chunk_id = chunk_id
         if not os.path.exists(figdir):
             raise FileNotFoundError(f'Directory "{figdir}" does not exist."')
 
     def save_figure(self, fig, title):
+        if self._inactive:
+            return
         fmt = "png"
         try:
             fname = os.path.join(self._figdir, f"{title}_{self.chunk_id:03}.{fmt}")
@@ -90,6 +93,7 @@ def deconvolve_dataframe_in_chunks(
     figdir=None,
     njobs=None,
     joblib_tasks=1,
+    stop_on_error=False,
 ):
 
     dfl = get_overlapping_chunks(df, chunksize, Noverlap)
@@ -139,7 +143,9 @@ def deconvolve_dataframe_in_chunks(
             ds_output.to_netcdf(fname)
         except Exception as e:
             logger.warning(f"Unable to process chunk {chunk_id}")
-            logger.warning(e)
+            logger.warning(f"{type(e)} {e}")
+            if stop_on_error:
+                raise
             fname = None
         return fname
 
@@ -165,6 +171,9 @@ def deconvolve_dataframe_in_chunks(
 
     if dask_client is not None:
         fnames = dask_client.gather(fnames)
+
+    # filter out None values (which indicate error in processing)
+    fnames = [itm for itm in fnames if itm is not None]
 
     return fnames
 
