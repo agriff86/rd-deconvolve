@@ -71,6 +71,8 @@ def fit_model_to_obs(
     njobs: int = 4,
     figure_manager=None,
 ):
+    if njobs is None:
+        njobs = 1
     with timing("Constructing model"):
         model = construct_model(
             time=time,
@@ -206,21 +208,23 @@ def trace_as_xarray(index_time, trace, vn="deconvolved_radon"):
 
 def stats_from_xarray(ds):
     # analagous to a +/- one sigma interval
+    # variable name root
+    k = 'radon_deconv'
     summary_data = []
     mid = ds.stack(z=("chain", "draw")).radon.mean(dim="z")
-    mid.name = "mcmc_mean"
+    mid.name = k
     summary_data.append(mid)
     sd = ds.stack(z=("chain", "draw")).radon.std(dim="z")
-    sd.name = "mcmc_sd"
+    sd.name = k+'_sd'
     summary_data.append(sd)
 
     low_16pc, high_84pc = arviz.hpd(
         ds.stack(z=("chain", "draw")).radon.T, credible_interval=0.68
     ).T
     low_16pc = xr.DataArray(low_16pc, dims=("time",))
-    low_16pc.name = "mcmc_16pc"
+    low_16pc.name = k+"_16pc"
     high_84pc = xr.DataArray(high_84pc, dims=("time",))
-    high_84pc.name = "mcmc_84pc"
+    high_84pc.name = k+"_84pc"
     summary_data.append(low_16pc)
     summary_data.append(high_84pc)
 
@@ -228,14 +232,19 @@ def stats_from_xarray(ds):
         ds.stack(z=("chain", "draw")).radon.T, credible_interval=0.94
     ).T
     low_3pc = xr.DataArray(low_3pc, dims=("time",))
-    low_3pc.name = "mcmc_3pc"
+    low_3pc.name = k+"_3pc"
     high_97pc = xr.DataArray(high_97pc, dims=("time",))
-    high_97pc.name = "mcmc_97pc"
+    high_97pc.name = k+"_97pc"
     summary_data.append(low_3pc)
     summary_data.append(high_97pc)
 
-    ds = xr.merge(summary_data)
-    return ds
+    ds_ret = xr.merge(summary_data)
+    try:
+        ds_ret['overlap_flag'] = ds['overlap_flag']
+    except KeyError:
+        pass
+
+    return ds_ret
 
 
 def result_plot(ds, ax=None):
@@ -443,6 +452,7 @@ def construct_model(
             "V_delay": sp["V_delay"],
             "V_tank": sp["V_tank"],
             "total_efficiency": tt.as_tensor_variable(sp["total_efficiency"]),
+            "num_delay_volumes": sp["num_delay_volumes"],
         }
 
         # if we are fitting to a calibration then the total efficiency is unknown
