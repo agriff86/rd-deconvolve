@@ -55,9 +55,9 @@ setup(
     zip_safe=False,
     install_requires=[
         "numpy",
-        "pandas>=1.0",
+        "pandas", # >= 1.0
         "pymc3",
-        "emcee>=3.0",
+        "emcee", # >= 3.0
         "logzero",
         "theano",
         "scipy",
