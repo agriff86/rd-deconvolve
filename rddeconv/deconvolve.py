@@ -182,7 +182,7 @@ def deconvolve_dataframe(
     df,
     detector_params,
     mcmc_backend="pymc3",
-    Nsamples=1000,
+    Nsamples=2000,
     njobs=None,
     figure_manager=None,
 ):
