@@ -33,3 +33,4 @@ dependencies:
  - pymc3
  - flake8
  - dask
+ - chardet
