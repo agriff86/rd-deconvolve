@@ -56,18 +56,21 @@ class FigureManager(object):
         self._figdir = figdir
         self._inactive = figdir is None
         self.chunk_id = chunk_id
-        if not os.path.exists(figdir):
+        if not self._inactive and not os.path.exists(figdir):
             raise FileNotFoundError(f'Directory "{figdir}" does not exist."')
 
     def save_figure(self, fig, title):
         if self._inactive:
             return
         fmt = "png"
-        try:
-            fname = os.path.join(self._figdir, f"{title}_{self.chunk_id:03}.{fmt}")
-        except ValueError:
-            # chunk_id may be non-numeric
-            fname = os.path.join(self._figdir, f"{title}_{self.chunk_id}.{fmt}")
+        if self.chunk_id is not None:
+            try:
+                fname = os.path.join(self._figdir, f"{title}_{self.chunk_id:03}.{fmt}")
+            except ValueError:
+                # chunk_id may be non-numeric
+                fname = os.path.join(self._figdir, f"{title}_{self.chunk_id}.{fmt}")
+        else:
+           fname = os.path.join(self._figdir, f"{title}.{fmt}")
         fig.savefig(fname, dpi=300, transparent=False, bbox_inches="tight")
 
 

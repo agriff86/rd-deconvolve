@@ -817,13 +817,13 @@ def chunkwise_apply(df, chunksize, overlap, func, func_args=(), func_kwargs={},
     chunk_id_list = list(range(0, len(chunks)))
 
     if nproc == 1:
-        results = [func(itm, *func_args, **func_kwargs, _chunk_id=chunk_id) for itm,chunk_id in zip(chunks, chunk_id)]
+        results = [func(itm, *func_args, **func_kwargs, _chunk_id=chunk_id) for itm,chunk_id in zip(chunks, chunk_id_list)]
     else:
         # parallel version
         from joblib import Parallel, delayed
         par = Parallel(n_jobs=nproc, verbose=50)
-        results = par(delayed(func)(itm, *func_args, **func_kwargs)
-                                 for itm in chunks)
+        results = par(delayed(func)(itm, *func_args, _chunk_id=chunk_id, **func_kwargs)
+                                 for itm,chunk_id in zip(chunks,chunk_id_list))
     # add chunk_id field
     for itm, chunk_id in zip(results, chunk_id_list):
         if itm is not None:
@@ -1068,8 +1068,10 @@ def emcee_deconvolve_tm(df, col_name='lld',
             raise
         else:
             ret = None
-            logger.warning(__name__, ' encounted an exception, but is trying to continue ',
-                                    type(e), e)
+            import traceback
+            logger.warning(f'{__name__} encounted an exception, but is trying to continue {type(e)}, {e}')
+            stack_trace = traceback.format_exc()
+            logger.warning(stack_trace)
     return ret
 
 
