@@ -38,6 +38,12 @@ ddir1 = os.path.join(EXAMPLE_DIR,'data-intermediate')
 ddir2 = os.path.join(EXAMPLE_DIR,'data-processed')
 
 #%%
+for ddir in ddir1,ddir2:
+    if not os.path.exists(ddir):
+        print('Creating directory: {}'.format(ddir))
+        os.mkdir(ddir)
+
+#%%
 def _load_single_file(fname):
     """Load a single file in the usual csv format 
 
