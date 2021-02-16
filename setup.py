@@ -62,5 +62,6 @@ setup(
         "theano",
         "scipy",
         "joblib",
+        "chardet",
     ],
 )

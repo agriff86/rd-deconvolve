@@ -7,6 +7,6 @@
 
 if [[ ! -d ./env ]]
 then
-    conda create --prefix ./env
+    conda create -y --prefix ./env
 fi
-conda env update --prefix ./env --file environment-dev.yml  --prune
+conda env update -y --prefix ./env --file environment-dev.yml  --prune

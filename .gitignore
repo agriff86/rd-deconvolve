@@ -1,3 +1,10 @@
+# deconvolution output
+deconvolution_result_chunk*.nc
+examples/*/data-intermediate/*
+examples/*/data-processed/*
+deconv.log
+
+
 # Emacs rope configuration
 .ropeproject
 .project

@@ -1,6 +1,3 @@
-# Runtime requirements
---requirement requirements.txt
-
 # Environment for developing deconvolution scripts
 # TODO: remove unnecessary deps.
 
