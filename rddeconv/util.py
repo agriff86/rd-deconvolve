@@ -158,7 +158,7 @@ def load_standard_csv(fname: str) -> pd.DataFrame:
             # some protection against multi-gigabtye files (read 100Mb)
             result = chardet.detect(rawdata.read(1024*1024*100))
             encoding = result['encoding']
-        df = pd.read_csv(fname, encoding=encoding)
+        df = pd.read_csv(fn, encoding=encoding)
         df.columns = [itm.strip().lower() for itm in df.columns]
         df['time'] = df.time.apply(parse_hhmm_string)
         df.columns = [itm.strip().lower() for itm in df.columns]
