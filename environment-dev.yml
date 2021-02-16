@@ -31,3 +31,4 @@ dependencies:
  - flake8
  - dask
  - chardet
+ - pandas
