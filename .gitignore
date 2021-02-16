@@ -3,6 +3,10 @@ deconvolution_result_chunk*.nc
 examples/*/data-intermediate/*
 examples/*/data-processed/*
 deconv.log
+figs
+
+# output from cython
+rddeconv/fast_detector.cpp
 
 
 # Emacs rope configuration
