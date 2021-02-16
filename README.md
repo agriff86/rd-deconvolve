@@ -25,7 +25,7 @@ These steps have been tested on Ubuntu 18.04.
 ```sh
 git clone https://github.com/agriff86/rd-deconvolve.git
 ```
-3. build the environment
+3. build the environment (from the instructions in ./environment-yml).  Alarmingly, this environment is 2.7G in size.
 ```sh
 cd rd-deconvolve
 ./build_conda_env
