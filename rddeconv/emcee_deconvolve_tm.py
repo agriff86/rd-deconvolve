@@ -419,7 +419,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     if len(internal_airt_history) == 0:
         logger.warning("Internal air temperature not provided. Assuming constant 20degC")
         internal_airt_history = np.zeros(len(t)) + 273.15 + 20.0
-
+    
     parameters.update( dict(variable_parameter_names=variable_parameter_names,
                             nhyper=nhyper,
                             nstate=nstate,
@@ -427,6 +427,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
                             variable_parameters_sigma_prior=
                                                 variable_parameters_sigma_prior,
                             internal_airt_history=internal_airt_history))
+    
     # Detector state at t=0, prior and initial guess
     Y0 = fast_detector.calc_steady_state(Nrn=1.0, Q=parameters['Q'], rs=parameters['rs'],
                         lamp=parameters['lamp'],
@@ -462,7 +463,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         params_psf['t_delay'] += parameters['tres']/2.0 # move to middle-of-interval
         df = detector_model_wrapper(parameters['tres'], Y0*0.0,
                                     psf_radon_conc,
-                                    internal_airt_history=internal_airt_history,
+                                    internal_airt_history=internal_airt_history*0 + 273.15,
                                     parameters=params_psf,
                                     interpolation_mode=parameters['interpolation_mode'])
         #work out when we've seen 99% of the total counts
@@ -504,6 +505,14 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
             # counts per counting interval, gets converted to atoms/m3 later
             radon_conc = np.zeros(radon_conc.size) + observed_counts[0]
 
+        # if there are invalid values contained in the initial guess, 
+        # then also begin with starting guess constant values
+        missing_values_present = not np.isfinite(observed_counts).all()
+        if missing_values_present:
+            # radon_conc here is actually the counts per counting interval
+            logger.info("Found Inf or NaN values in observed counts, skipping Richardson-Lucy deconvolution")
+            radon_conc = np.zeros(radon_conc.size) + np.nanmean(observed_counts)
+
         f1, ax = plt.subplots()
         ax.plot(one_sided_prf)
         ax.set_title('point-response function, used for RLTV initial guess')
@@ -516,7 +525,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         if figure_manager is not None:
             figure_manager.save_figure(f1, 'emcee-point-response-function')
-            figure_manager.save_figure(f1, 'emcee-RLTV-deconvolution')
+            figure_manager.save_figure(f2, 'emcee-RLTV-deconvolution')
 
         rs = parameters['rs']
         Y0eff = fast_detector.calc_steady_state(1/lamrn,
@@ -557,7 +566,9 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
             ax.legend()
 
             if figure_manager is not None:
-                figure_manager.save_figure(f, 'emcee-modelled-counts-from-RLTV')
+                pass
+                # redundant - plot is on another figure
+                # figure_manager.save_figure(f, 'emcee-modelled-counts-from-RLTV')
 
 
         assert len(radon_conc) == len(observed_counts)
@@ -576,6 +587,8 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         p00 = pack_parameters(Y0_mu_prior, variable_parameters_mu_prior, radon_conc)
         # trap the same error where p doesn't get updated
         assert(p00[-1] == radon_conc[-1])
+        # a version where the response function isn't allowed to vary
+        p00_fixed_response = pack_parameters(Y0_mu_prior, [], radon_conc)
 
     p = p00.copy()
 
@@ -644,9 +657,6 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         from scipy.optimize import minimize
         method = 'Powell'
         # method = 'BFGS' # BFGS is not working
-        #check that we can call this
-        x = transform_parameters(p, parameters)
-        logger.debug(f"minus_lnprob: {minus_lnprob(x, parameters)}")
 
         # use log radon conc in x0
         ### x0 = np.r_[ p[0: nstate+nhyper], np.log(p[nstate+nhyper:])]
@@ -657,19 +667,43 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         #    p_rn = transform_radon_concs(radon_conc)
         #    p = np.r_[p[0: nstate+nhyper], p_rn]
 
+        fixed_response_function = True
+        if fixed_response_function:
+            # a version of 'parameters' with the response function set to a fixed value
+            # (faster/easier MAP optimisation)
+            parameters_fixed_response_function = {}
+            parameters_fixed_response_function.update(parameters)
+            for ii,k in enumerate(parameters['variable_parameter_names']):
+                parameters_fixed_response_function[k] = parameters['variable_parameters_mu_prior'][ii]
+                parameters_fixed_response_function['variable_parameter_names'] = []
+                parameters_fixed_response_function['variable_parameters_mu_prior'] = []
+                parameters_fixed_response_function['variable_parameters_sigma_prior'] = []
+                parameters_fixed_response_function['variable_parameter_lower_bounds'] = []
+                parameters_fixed_response_function['variable_parameter_upper_bounds'] = []
+            parameters_fixed_response_function['nhyper'] = 0
+            map_params = parameters_fixed_response_function
+            map_p = p00_fixed_response.copy()
+        else:
+            map_params = parameters
+            map_p = p
+
+        #check that we can call this
+        x = transform_parameters(map_p, map_params)
+        logger.debug(f"minus_lnprob at MAP search initial location: {minus_lnprob(x, map_params)}")
+
 
         with util.timewith(name=method):
-            x0 = transform_parameters(p, parameters)
+            x0 = transform_parameters(map_p, map_params)
             logger.debug(f'x0: {x0}')
-            ret = minimize(minus_lnprob, x0=x0, args=(parameters,), method=method,
+            ret = minimize(minus_lnprob, x0=x0, args=(map_params,), method=method,
                             options=dict(maxiter=200,
                                          maxfev=800000))
 
-            #print("MAP P0 log-prob:", lnprob(ret.x, parameters))
-            pmin = inverse_transform_parameters(ret.x, parameters)
+            #print("MAP P0 log-prob:", lnprob(ret.x, map_params))
+            pmin = inverse_transform_parameters(ret.x, map_params)
 
             ### pmin = np.r_[pmin[0: nstate+nhyper], np.exp(pmin[nstate+nhyper:])]
-            logger.debug(f"MAP P0 log-prob: {lnprob(pmin, parameters)}")
+            logger.debug(f"MAP P0 log-prob: {lnprob(pmin, map_params)}")
 
         logger.debug("MAP fitting results:")
         ret.pop('direc') # too much output on screen
@@ -677,17 +711,17 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         logger.debug(f'(from MAP) pmin: {pmin}')
 
-        y1 = detector_model_specialised(pmin, parameters)
+        y1 = detector_model_specialised(pmin, map_params)
         y0 = observed_counts[1:]
-        y_ig = detector_model_specialised(p00, parameters)
+        y_ig = detector_model_specialised(map_p, map_params)
         f, ax = plt.subplots()
         ax.plot(y0, label='obs')
         ax.plot(y1, label='model')
         ax.plot(y_ig, label='model_guess_before_MAP')
         ax.legend()
-        ax.set_title((pmin/p00)[nstate:nstate+nhyper])
-        logger.debug("Parameters - MAP value / initial guess")
-        logger.debug(list(zip(variable_parameter_names, (pmin/p)[nstate:nstate+nhyper])))
+        ax.set_title((pmin/map_p)[nstate:nstate+map_params['nhyper']])
+        # logger.debug("Parameters - MAP value / initial guess")
+        # logger.debug(list(zip(variable_parameter_names, (pmin/p)[nstate:nstate+nhyper])))
         if figure_manager is not None:
             figure_manager.save_figure(f, 'emcee-model-vs-obs')
 
@@ -699,7 +733,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
 
         if not radon_conc_is_known:
             f, ax = plt.subplots()
-            ax.plot(pmin[nstate+nhyper:]*lamrn, label='MAP estimate')
+            ax.plot(pmin[nstate+map_params['nhyper']:]*lamrn, label='MAP estimate')
             ax.plot(p00[nstate+nhyper:]*lamrn, label='RLTV deconvolution')
             ax.legend()
             ax.set_ylabel('Bq/m3')
@@ -707,9 +741,15 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
                 figure_manager.save_figure(f, 'emcee-MAP')
 
 
-            map_radon_timeseries = pmin[nstate+nhyper:].copy()
+            map_radon_timeseries = pmin[nstate+map_params['nhyper']:].copy()
 
-        p = pmin.copy()
+        # this needs to be expanded out like
+        # p = [state params] [response function params] [radon timeseries]
+        # but at the moment, pmin doesn't include the response function params
+        pmin_padded = np.r_[pmin[:nstate], parameters['variable_parameters_mu_prior'], pmin[nstate:]]
+        p = pmin_padded
+        
+        #p = pmin.copy()
 
         plt.close('all')
 
@@ -782,7 +822,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     A = sampler.flatchain
 
     # put the initial guess (MAP estimate) into the chain
-    A = np.vstack([pmin, A])
+    A = np.vstack([pmin_padded, A])
 
     mean_est = A.mean(axis=0)
     low = np.percentile(A, 10.0, axis=0)
@@ -892,8 +932,16 @@ def emcee_deconvolve_tm(df, col_name='lld',
                 total_efficiency_frac_error=0.05,
                 background_count_rate=1/60.0)
 
+        # handle missing values in air temperature timeseries
+        # --- this parameter doesn't have a strong effect on results, so it's reaonable to interpolate
+        if df['airt'].isnull().values.any():
+            airt_saved = df['airt'].values.copy()
+            df['airt'] = df['airt'].interpolate()
+            logger.warning(f"Missing values found in air temperature, filling with linear interpolation.\n was: {airt_saved}\n now: {df['airt'].values}")
+
         # the internal airt history should already have been converted to K
         internal_airt_history = df['airt'].values
+        
         if not internal_airt_history.min() > 200.0:
             logger.error("'airt' needs to be in K at the observation time")
             raise ValueError("'airt' needs to be in K at the observation time")
