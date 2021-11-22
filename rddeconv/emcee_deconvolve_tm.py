@@ -954,14 +954,14 @@ def emcee_deconvolve_tm(df, col_name='lld',
 
         # some of the parameters might be specified as DataFrame columns
         possible_params_from_dataframe = ['total_efficiency', 'background_count_rate',
-                                 'Q_external']
+                                 'Q_external', 'Q']
         params_from_dataframe = []
         for param_name in possible_params_from_dataframe:
             if is_string(parameters[param_name]):
                 column_name = parameters[param_name]
                 parameters[param_name] = df[column_name].mean()
                 params_from_dataframe.append(param_name)
-                logger.debug(f"{param_name} from data: {parameters[param_name]}")
+                logger.info(f"{param_name} from data: {parameters[param_name]}")
 
         # detector overall efficiency - check it's close to the prescribed efficiency
         # TODO: should eff be adjusted here?
