@@ -28,7 +28,7 @@ git clone https://github.com/agriff86/rd-deconvolve.git
 3. build the environment (from the instructions in [the environment file](./environment-dev.yml)).  Alarmingly, this environment is 2.7G in size.
 ```sh
 cd rd-deconvolve
-./build_conda_env
+./build_conda_env.sh
 ```
 4. activate the new environment
 ```sh
