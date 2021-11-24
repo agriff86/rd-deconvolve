@@ -125,8 +125,8 @@ parameters['transform_radon_timeseries'] = True
 # column to use.)
 parameters['background_count_rate'] = 'background_rate'
 parameters["total_efficiency"] = 'total_efficiency'
-parameters["Q"] = 'Q'
-parameters["Q_external"] = 'Q_external'
+# parameters["Q"] = 'Q'
+# parameters["Q_external"] = 'Q_external'
 
 # emcee model uses two variable-size delay volumes, so handle this
 if parameters['num_delay_volumes'] == 2:
