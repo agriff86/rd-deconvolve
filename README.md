@@ -45,6 +45,8 @@ cd examples/generic-1500l-deconvolution
 python clean_data.py
 # outputs deconvolved data to ./data-processed
 python run_deconv.py
+# generate netCDF files and a plot
+python plot_deconv_results.py 
 ```
 
 Algorithm
