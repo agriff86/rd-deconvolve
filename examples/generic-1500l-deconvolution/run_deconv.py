@@ -121,8 +121,12 @@ parameters['interpolation_mode'] = 1
 parameters['transform_radon_timeseries'] = True
 
 # parameters which are to be taken from data frame
+# (instead of assigning a value, assign the name of the dataframe
+# column to use.)
 parameters['background_count_rate'] = 'background_rate'
 parameters["total_efficiency"] = 'total_efficiency'
+parameters["Q"] = 'Q'
+parameters["Q_external"] = 'Q_external'
 
 # emcee model uses two variable-size delay volumes, so handle this
 if parameters['num_delay_volumes'] == 2:
@@ -130,6 +134,7 @@ if parameters['num_delay_volumes'] == 2:
 
 # deconvolution using emcee
 if True:
+    # number of processors to use (change this to suit your system)
     nproc=12
     df = emcee_deconvolve_tm(df,
                                 iterations=3000, #3000,  # try e.g. 3000
