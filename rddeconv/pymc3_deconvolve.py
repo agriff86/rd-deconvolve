@@ -38,9 +38,9 @@ import pymc3 as pm
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-import logzero
+import logging
 
-logger = logzero.logger
+logger = logging.getLogger(__name__)
 
 
 # timing helper

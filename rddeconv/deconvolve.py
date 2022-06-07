@@ -1,7 +1,7 @@
 """
 Main deconvolution routine
 """
-import logzero
+import logging
 import pandas as pd
 import pymc3 as pm
 import os
@@ -10,8 +10,7 @@ import xarray as xr
 
 from . import pymc3_deconvolve
 
-logger = logzero.logger
-
+logger = logging.getLogger(__name__)
 
 def overlapping_chunk_dataframe_iterator(df, chunksize, overlap=0, minsize=1):
     """

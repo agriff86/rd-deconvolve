@@ -58,7 +58,6 @@ setup(
         "pandas", # >= 1.0
         "pymc3",
         "emcee", # >= 3.0
-        "logzero",
         "theano",
         "scipy",
         "joblib",

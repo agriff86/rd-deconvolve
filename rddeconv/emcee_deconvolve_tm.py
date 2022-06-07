@@ -30,9 +30,9 @@ from . import fast_detector
 from . import theoretical_model as tm
 from .deconvolve import FigureManager
 
-import logzero
+import logging
 
-logger = logzero.logger
+logger = logging.getLogger(__name__)
 
 lamrn = 2.1001405267111005e-06
 lama = 0.0037876895112565318
@@ -40,6 +40,7 @@ lamb = 0.00043106167945270227
 lamc = 0.00058052527685087548
 
 # somewhat complicated for python 2/3 compatability (method from SO)
+# TODO: revise to Python3 only
 try:
     isinstance("", basestring)
     def is_string(s):
@@ -47,6 +48,27 @@ try:
 except NameError:
     def is_string(s):
         return isinstance(s, str)
+
+def start_logger_if_necessary():
+    """
+    This is a work-around for a bug:
+    https://github.com/joblib/joblib/issues/1017
+
+    """
+    logger = logging.getLogger(__name__)
+    if len(logger.handlers) == 0:
+        logger.setLevel(logging.INFO)
+        sh = logging.StreamHandler()
+        logfmt = (
+                    "[%(levelname)1.1s PID=%(process)d %(asctime)s] %(message)s"
+        )
+
+        sh.setFormatter(logging.Formatter(logfmt))
+        fh = logging.FileHandler('deconv-worker.log', mode='w')
+        fh.setFormatter(logging.Formatter(logfmt))
+        logger.addHandler(sh)
+        logger.addHandler(fh)
+    return logger
 
 def detector_model_wrapper(timestep, initial_state, external_radon_conc,
                            internal_airt_history,
@@ -389,6 +411,8 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
     """
     TODO: doc
     """
+    # needed because of https://github.com/joblib/joblib/issues/1017
+    logger = start_logger_if_necessary()
     # observed counts need to be integers
     not_na = np.isfinite(observed_counts)
     assert np.alltrue(np.round(observed_counts[not_na])==observed_counts[not_na])
@@ -769,7 +793,7 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
         if not np.allclose(orig, check):
             logger.error("transformed radon concs do not match inverse")
             logger.error("(orig,inv) pairs follow")
-            logger.error( [itm for itm in zip(orig, check)] )
+            logger.error( str([itm for itm in zip(orig, check)]) )
             assert False
 
     # Number of walkers needs to be at least 2x number of dimensions
