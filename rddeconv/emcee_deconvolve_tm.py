@@ -460,7 +460,8 @@ def fit_parameters_to_obs(t, observed_counts, radon_conc=[],
                         eff=parameters['eff'])
     Nrnd,Nrnd2,Nrn,Fa,Fb,Fc, Acc_counts = Y0
     expected_counts = parameters['eff']*(Fa*lama + Fc*lamc) * (t[1]-t[0])
-    scale_factor = observed_counts[0] / expected_counts
+    # observed_counts[0] might be NaN, look for the first non-nan value
+    scale_factor = observed_counts[np.isfinite(observed_counts)][0] / expected_counts
     Y0 *= scale_factor
     Y0_mu_prior = Y0.copy()
 
